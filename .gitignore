@@ -6,6 +6,7 @@
 /build
 /captures
 /.attach_*
+/gradle
 =======
 # Compiled class file
 *.class

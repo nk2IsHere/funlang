@@ -14,15 +14,14 @@ sealed class Expression {
     data class Constructor(val ty: Name, val dtor: Name, val fields: List<Expression>) : Expression()
     data class Match(val expr: Expression, val cases: List<Case>) : Expression()
     data class Lambda(val binder: Name, val body: Expression) : Expression() {
-        fun fold(): Pair<List<Name>, Expression> {
-            return when (body) {
+        fun fold(): Pair<List<Name>, Expression> =
+            when (body) {
                 is Lambda -> {
                     val (innerArgs, closureBody) = body.fold()
                     listOf(binder) + innerArgs to closureBody
                 }
                 else -> listOf(binder) to body
             }
-        }
 
         fun substLam(v: Name, replacement: Expression): Lambda =
             if (v == binder) this

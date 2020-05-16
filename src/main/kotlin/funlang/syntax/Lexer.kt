@@ -114,7 +114,14 @@ class Lexer(input: String) : Iterator<Spanned<Token>> {
                 }
             }
             '=' -> Equals to 1
-            '-' -> if (iterator.next() == '>') Arrow to 2 else error("arrow is an only supported construction which begins with \"-\"")
+            '-' -> when {
+                iterator.peek() == '>' -> {
+                    iterator.next()
+                    Arrow to 2
+                }
+                iterator.peek().isDigit() -> doubleLiteral(c)
+                else -> error("arrow is an only supported construction which begins with \"-\"")
+            }
             '"' -> stringLiteral()
             else -> when {
                 c.isJavaIdentifierStart() -> ident(c)
@@ -142,7 +149,7 @@ class Lexer(input: String) : Iterator<Spanned<Token>> {
         var result: String = startChar.toString()
         var dotCount = 0
 
-        while (iterator.hasNext() && (iterator.peek().isDigit() || iterator.peek() == '.' && dotCount == 0)) {
+        while (iterator.hasNext() && (iterator.peek() == '-' || iterator.peek().isDigit() || iterator.peek() == '.' && dotCount == 0)) {
             val token = iterator.next()
             if(token == '.')
                 dotCount += 1

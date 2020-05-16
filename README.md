@@ -17,7 +17,6 @@ Wannabe-Haskell language written on Kotlin
 `str 2.13` - converts type to string
 
 ### TODO:
-- I think I've forgotten to implement parsing of negative doubles, lol :D
 - Write tests (😂👌👌👌👌)
 - Supporting higher-order types
 - Add examples on types and match constructions
