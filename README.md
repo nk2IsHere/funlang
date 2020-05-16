@@ -24,6 +24,7 @@ Wannabe-Haskell language written on Kotlin
 - Add modules (separate files with types and its specific functions)
 - Allow types to be declared everywhere (now those can be declared only on top of the program)
 - Add more standart functions
+- Fix type checker, sometimes it fails to correctly guess type when lambdas with Monotype.Var combine
 
 ### Examples:
 #### Double (basically any number is double)
