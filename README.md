@@ -96,7 +96,7 @@ fib 20
 ```
 type List<a> { Val(a, List<a>), Nil() }
 
-let rec map : forall a b. (a -> b) -> List<a> -> List<b> =
+let rec map: forall a b. (a -> b) -> List<a> -> List<b> =
     \f. \ls.
         match ls {
             List::Nil() -> List::Nil(),
