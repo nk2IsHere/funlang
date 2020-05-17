@@ -18,11 +18,12 @@ Wannabe-Haskell language written on Kotlin
 
 ### TODO:
 - Write tests (😂👌👌👌👌)
-- Support higher-order types
-- Add examples on types and match constructions
-- Add modules (separate files with types and its specific functions)
-- Allow types to be declared everywhere (now those can be declared only on top of the program)
 - Add more standart functions `out`, `in_num 3`, `in_str`, `in_bool`, `args_...`
+- Add where construction
+- Add examples on types, match and where constructions
+- Add modules (separate files with types and its specific functions)
+- Support higher-order types
+- Allow types to be declared everywhere (currently those can be declared only on top of the program)
 
 ### Examples:
 #### Double (basically any number is double)
