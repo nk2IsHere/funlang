@@ -18,7 +18,7 @@ Wannabe-Haskell language written on Kotlin
 
 ### TODO:
 - Write tests (😂👌👌👌👌)
-- Add more standart functions `out`, `in_num 3`, `in_str`, `in_bool`, `args_...`
+- Fix type inteference (works quiet badly, breaks on inferring lambdas)
 - Add where construction
 - Add examples on types, match and where constructions
 - Add modules (separate files with types and its specific functions)

@@ -123,7 +123,7 @@ sealed class IR {
         (this as? String)?.string ?: throw Exception("Expected a String but got $this")
 
     companion object {
-        internal val initialEnv: IREnv = IREnv(
+        internal fun makeEnv(): IREnv = IREnv( //env with all kotlin-related impl
             hashMapOf(
                 primBinary("add"),
                 primBinary("sub"),
@@ -196,22 +196,49 @@ class TypeInferrer {
         "lte" to "Double -> Double -> Bool",
         "eq" to "a -> b -> Bool",
         "str" to "a -> String",
-        "concat" to "String -> String -> String"
+        "concat" to "a -> b -> String"
     ).fold(Environment()) { acc, (name, ty) ->
         acc.extend(Name(name), Parser.parseType(ty))
     }
 
-    fun infer(expr: Expression, typeMap: TypeMap) =
+    fun infer(expr: Expression, typeMap: TypeMap, vararg envArguments: Pair<String, Any>) =
         TypeChecker(CheckState.initial()).withTypeMap(typeMap)
-            .inferExpr(initialEnv, expr)
+            .inferExpr(
+                envArguments.fold(initialEnv, { acc, (key, value) ->
+                    acc.extend(Name("args_$key"), Parser.parseType(when(value) {
+                        is Number -> "Double"
+                        is String -> "String"
+                        is Boolean -> "Bool"
+                        else -> error("$value is now supported as an argument")
+                    }))
+                }),
+                expr
+            )
 }
 
-fun runProgram(input: String): Pair<Monotype, IR> {
+fun runProgram(input: String, vararg envArguments: Pair<String, Any>): Pair<Monotype?, IR> {
     val (types, expr) = Parser.parseExpression(input)
     val typeMap = TypeMap(HashMap())
     types.forEach { typeMap.tm[it.name] = TypeInfo(it.typeVariables, it.dataConstructors) }
 
-    val type = TypeInferrer().infer(expr, typeMap)
+    val env = IR.makeEnv()
+    envArguments.forEach { (key, value) ->
+        env[Name("args_$key")] = when(value) {
+            is Number -> IR.Double(value.toDouble())
+            is String -> IR.String(value)
+            is Boolean -> IR.Bool(value)
+            else -> error("$value is now supported as an argument")
+        }
+    }
+    val type = try {
+        TypeInferrer().infer(expr, typeMap, *envArguments)
+    } catch (e: UnifyException) {
+        println("Type interference failed")
+        e.printStackTrace()
+        null
+    }
     val ir = IR.fromExpr(expr, typeMap)
-    return type to ir.eval(IR.initialEnv)
+
+
+    return type to ir.eval(env)
 }

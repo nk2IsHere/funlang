@@ -111,7 +111,7 @@ class TypeChecker(var checkState: CheckState) {
     }
 
     private fun solveType(v: String, ty: Monotype) {
-        if (ty.vars().contains(v)) error("$v is alread present somewhere before")
+        if (ty.vars().contains(v)) error("$v is already present somewhere before")
         checkState.substitution.subst[v] = ty
     }
 
@@ -127,6 +127,8 @@ class TypeChecker(var checkState: CheckState) {
     fun unify(ty1: Monotype, ty2: Monotype) {
         val ty1 = zonk(ty1)
         val ty2 = zonk(ty2)
+
+        println("$ty1 $ty2")
 
         if (ty1 != ty2) {
             when {
