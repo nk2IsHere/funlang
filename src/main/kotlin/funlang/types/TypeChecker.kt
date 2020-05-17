@@ -5,10 +5,11 @@ import kotlin.Exception
 import kotlinx.collections.immutable.PersistentMap
 import kotlinx.collections.immutable.persistentHashMapOf
 
-data class Substitution(val subst: HashMap<Int, Monotype>) {
+data class Substitution(val subst: HashMap<String, Monotype>) {
     fun apply(ty: Monotype): Monotype =
         when (ty) {
-            is Monotype.Unknown -> subst[ty.u]?.let(::apply) ?: ty
+            is Monotype.Unknown -> subst["u${ty.u}"]?.let(::apply) ?: ty
+            is Monotype.Var -> subst[ty.v.v]?.let(::apply) ?: ty
             is Monotype.Function -> Monotype.Function(apply(ty.argument), apply(ty.result))
             is Monotype.Constructor -> ty.copy(arguments = ty.arguments.map { apply(it) })
             else -> ty
@@ -88,25 +89,30 @@ class TypeChecker(var checkState: CheckState) {
         return tyInfo.tyArgs to dataConstructor.args
     }
 
-    private fun generalise(env: Environment, ty: Monotype): Polytype {
-        val ty = zonk(ty)
-        val niceVars = "abcdefghijklmnopqrstuvwxyz".iterator()
-        val quantified: MutableList<TyVar> = mutableListOf()
-        val subst: HashMap<Int, Monotype> = HashMap()
-        val envUnknowns = env.unknowns()
-        for (free in ty.unknowns()) {
-            if (!envUnknowns.contains(free)) {
-                val tyVar = TyVar(niceVars.nextChar().toString())
-                quantified.add(tyVar)
-                subst[free] = Monotype.Var(tyVar)
-            }
-        }
-        return Polytype(quantified, Substitution(subst).apply(ty))
-    }
+//    private fun generalise(env: Environment, ty: Monotype): Polytype {
+//        val ty = zonk(ty)
+//        val niceVars = "abcdefghijklmnopqrstuvwxyz".iterator()
+//        val quantified: MutableList<TyVar> = mutableListOf()
+//        val subst: HashMap<Int, Monotype> = HashMap()
+//        val envUnknowns = env.unknowns()
+//        for (free in ty.unknowns()) {
+//            if (!envUnknowns.contains(free)) {
+//                val tyVar = TyVar(niceVars.nextChar().toString())
+//                quantified.add(tyVar)
+//                subst[free] = Monotype.Var(tyVar)
+//            }
+//        }
+//        return Polytype(quantified, Substitution(subst).apply(ty))
+//    }
 
     private fun solveType(u: Int, ty: Monotype) {
-        if (ty.unknowns().contains(u)) throw Exception("Occurs check failed")
-        checkState.substitution.subst[u] = ty
+        if (ty.unknowns().contains(u)) error("u${u} is already present somewhere before")
+        checkState.substitution.subst["u${u}"] = ty
+    }
+
+    private fun solveType(v: String, ty: Monotype) {
+        if (ty.vars().contains(v)) error("$v is alread present somewhere before")
+        checkState.substitution.subst[v] = ty
     }
 
     fun withTypeMap(typeMap: TypeMap): TypeChecker {
@@ -137,9 +143,11 @@ class TypeChecker(var checkState: CheckState) {
                 }
                 ty1 is Monotype.Unknown -> solveType(ty1.u, ty2)
                 ty2 is Monotype.Unknown -> solveType(ty2.u, ty1)
+                ty1 is Monotype.Var -> solveType(ty1.v.v, ty2)
+                ty2 is Monotype.Var -> solveType(ty2.v.v, ty1)
                 ty1 is Monotype.Function && ty2 is Monotype.Function -> {
                     try {
-//                        unify(ty1.argument, ty2.argument)
+                        unify(ty1.argument, ty2.argument)
                         unify(ty1.result, ty2.result)
                     } catch (ex: UnifyException) {
                         ex.stack.add(ty1 to ty2)
@@ -149,7 +157,10 @@ class TypeChecker(var checkState: CheckState) {
                 ty2 is Monotype.Function -> {
                     unify(ty1, ty2.argument)
                 }
-                else -> throw UnifyException(ty1, ty2, mutableListOf())
+                else -> {
+                    println("unify $ty1 $ty2")
+                    throw UnifyException(ty1, ty2, mutableListOf())
+                }
             }
         }
     }

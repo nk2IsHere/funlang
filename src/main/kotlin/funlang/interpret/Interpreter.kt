@@ -15,9 +15,9 @@ inline class IREnv(val env: HashMap<Name, IR> = HashMap()) {
 }
 
 sealed class IR {
-    data class Double(val double: kotlin.Double) : IR()
-    data class Bool(val bool: Boolean) : IR()
-    data class String(val string: kotlin.String) : IR()
+    data class Double(val double: kotlin.Double): IR() { override fun toString(): kotlin.String = double.toString() }
+    data class Bool(val bool: Boolean): IR() { override fun toString(): kotlin.String = bool.toString() }
+    data class String(val string: kotlin.String): IR() { override fun toString(): kotlin.String = string.toString() }
     data class Var(val name: Name) : IR()
     data class Lambda(val binder: Name, val body: IR) : IR()
     data class Closure(val binder: Name, val body: IR, val env: IREnv) : IR()
@@ -65,7 +65,6 @@ sealed class IR {
             }
             is Constructor -> Constructor(ty, dtor, values.map { it.eval(env) })
             is Match -> {
-                // TODO use Bool for this
                 val scrutinee = scrutinee.eval(env) as? Constructor ?: error("Only type matching is currently supported in match construction")
                 val case = cases.first { it.ty == scrutinee.ty && it.dtor == scrutinee.dtor }
 
@@ -103,7 +102,7 @@ sealed class IR {
                     }
                 }
             })
-            "#concat" -> String(env[Name("x")]!!.matchString() + env[Name("y")]!!.matchString())
+            "#concat" -> String(env[Name("x")].toString() + env[Name("y")].toString())
             "#str" -> String(with(env[Name("x")]!!) { when (this) {
                 is Double -> this.double.toString()
                 is Bool -> this.bool.toString()
@@ -163,12 +162,11 @@ sealed class IR {
             is Expression.LetRec -> Let(true, expr.binder, fromExpr(expr.expr, typeMap), fromExpr(expr.body, typeMap))
             is Expression.If -> If(fromExpr(expr.condition, typeMap), fromExpr(expr.thenCase, typeMap), fromExpr(expr.elseCase, typeMap))
             is Expression.Constructor -> Constructor(expr.ty, expr.dtor, expr.fields.map { fromExpr(it, typeMap) })
-            is Expression.Match -> Match(fromExpr(expr.expr, typeMap), expr.cases.map { lowerCase(it, typeMap) })
+            is Expression.Match -> Match(fromExpr(expr.expr, typeMap), expr.cases.map { caseFromExpr(it, typeMap) })
         }
 
-        private fun lowerCase(case: funlang.syntax.Case, typeMap: TypeMap): Case {
+        private fun caseFromExpr(case: funlang.syntax.Case, typeMap: TypeMap): Case {
             if (case.pattern !is Pattern.Constructor) error("Non constructor pattern")
-
             val binders = case.pattern.fields.map {
                 if (it !is Pattern.Var) throw Exception("Non var pattern")
                 it.v
@@ -180,12 +178,6 @@ sealed class IR {
                 binders,
                 fromExpr(case.expr, typeMap)
             )
-        }
-
-        private fun tagForDtor(type: Name, dtor: Name, typeMap: TypeMap): Int {
-            val tyInfo = typeMap.tm[type] ?: throw Exception("Unknown type name $type")
-            val ix = tyInfo.constructors.indexOfFirst { dtor == it.name }
-            return if (ix != -1) ix else throw Exception("Unknown dtor name $dtor")
         }
     }
 }
