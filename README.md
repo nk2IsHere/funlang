@@ -19,7 +19,7 @@ Wannabe-Haskell language written on Kotlin
 ### TODO:
 - Write tests (😂👌👌👌👌)
 - Restrict usage of tyvar type agruments only for handling polytypes
-- Add where construction
+- Add when, where construction
 - Add examples on types, match and where constructions
 - Add modules (separate files with types and its specific functions)
 - Support higher-order types
