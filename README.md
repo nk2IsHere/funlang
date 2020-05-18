@@ -118,3 +118,13 @@ in
 
 map (\x. fizzbuzz x)  List::Val(1, List::Val(2, List::Val(3, List::Nil()))))
 ```
+
+#### Args
+```
+val (type, result) = runProgram("""
+
+    concat args_test (concat args_testBool (concat args_testInt "!!")))
+    
+""".trimIndent(), "test" to "KEK!", "testInt" to 4, "testBool" to false)
+println("type: $type\nresult: $result")
+```
