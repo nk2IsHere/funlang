@@ -18,7 +18,7 @@ Wannabe-Haskell language written on Kotlin
 
 ### TODO:
 - Write tests (😂👌👌👌👌)
-- Fix type inteference (works quiet badly, breaks on inferring lambdas)
+- Restrict usage of tyvar type agruments only for handling polytypes
 - Add where construction
 - Add examples on types, match and where constructions
 - Add modules (separate files with types and its specific functions)
