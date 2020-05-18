@@ -128,10 +128,9 @@ class TypeChecker(var checkState: CheckState) {
         val ty1 = zonk(ty1)
         val ty2 = zonk(ty2)
 
-        println("$ty1 $ty2")
-
         if (ty1 != ty2) {
             when {
+                ty1 is Monotype.Any || ty2 is Monotype.Any -> {/* Any does not require any unification rules */}
                 ty1 is Monotype.Constructor && ty2 is Monotype.Constructor -> {
                     if (ty1.name != ty2.name) throw UnifyException(ty1, ty2, mutableListOf())
                     try {
@@ -156,11 +155,10 @@ class TypeChecker(var checkState: CheckState) {
                         throw ex
                     }
                 }
-                ty2 is Monotype.Function -> {
-                    unify(ty1, ty2.argument)
-                }
+//                ty2 is Monotype.Function -> {
+//                    unify(ty1, ty2.argument)
+//                }
                 else -> {
-                    println("unify $ty1 $ty2")
                     throw UnifyException(ty1, ty2, mutableListOf())
                 }
             }
@@ -196,7 +194,8 @@ class TypeChecker(var checkState: CheckState) {
                     subsumes(tyBinder, expr.type)
                     tyBinder = expr.type
                 }
-                infer (env.extend(expr.binder, tyBinder), expr.body)
+
+                infer(env.extend(expr.binder, tyBinder), expr.body)
             }
             is Expression.LetRec -> {
                 val envBinder = expr.type ?: Polytype.fromMono(freshUnknown())
@@ -248,7 +247,8 @@ class TypeChecker(var checkState: CheckState) {
             }
         }
 
-    fun inferExpr(env: Environment, expr: Expression): Monotype = zonk(infer(env, expr))
+    fun inferExpr(env: Environment, expr: Expression): Monotype =
+        zonk(infer(env, expr))
 }
 
 data class UnifyException(val ty1: Monotype, val ty2: Monotype, val stack: MutableList<Pair<Monotype, Monotype>>) :

@@ -142,8 +142,9 @@ data class TypeDeclaration(
 data class DataConstructor(val name: Name, val args: List<Monotype>)
 
 sealed class Monotype {
-    object Double : Monotype()
-    object String : Monotype()
+    object Any: Monotype()
+    object Double: Monotype()
+    object String: Monotype()
     object Bool : Monotype()
     data class Function(val argument: Monotype, val result: Monotype) : Monotype()
     data class Unknown(val u: Int) : Monotype()
@@ -152,7 +153,7 @@ sealed class Monotype {
 
     fun over(f: (Monotype) -> Monotype): Monotype =
         when (this) {
-            Double, String, Bool, is Unknown -> f(this)
+            Any, Double, String, Bool, is Unknown -> f(this)
             is Function -> f(Function(argument.over(f), result.over(f)))
             is Var -> {
                 val match = Regex("""u(\d+)""").find(this.v.v)

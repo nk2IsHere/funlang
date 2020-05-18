@@ -194,9 +194,9 @@ class TypeInferrer {
         "gte" to "Double -> Double -> Bool",
         "lt" to "Double -> Double -> Bool",
         "lte" to "Double -> Double -> Bool",
-        "eq" to "a -> b -> Bool",
-        "str" to "a -> String",
-        "concat" to "a -> b -> String"
+        "eq" to "Any -> Any -> Bool",
+        "str" to "Any -> String",
+        "concat" to "Any -> Any -> String"
     ).fold(Environment()) { acc, (name, ty) ->
         acc.extend(Name(name), Parser.parseType(ty))
     }
@@ -205,12 +205,12 @@ class TypeInferrer {
         TypeChecker(CheckState.initial()).withTypeMap(typeMap)
             .inferExpr(
                 envArguments.fold(initialEnv, { acc, (key, value) ->
-                    acc.extend(Name("args_$key"), Parser.parseType(when(value) {
-                        is Number -> "Double"
-                        is String -> "String"
-                        is Boolean -> "Bool"
-                        else -> error("$value is now supported as an argument")
-                    }))
+                    acc.extendMono(Name("args_$key"), when(value) {
+                        is Number -> Monotype.Double
+                        is String -> Monotype.String
+                        is Boolean -> Monotype.Bool
+                        else -> error("$value is not supported as an argument")
+                    })
                 }),
                 expr
             )
@@ -227,7 +227,7 @@ fun runProgram(input: String, vararg envArguments: Pair<String, Any>): Pair<Mono
             is Number -> IR.Double(value.toDouble())
             is String -> IR.String(value)
             is Boolean -> IR.Bool(value)
-            else -> error("$value is now supported as an argument")
+            else -> error("$value is not supported as an argument")
         }
     }
     val type = try {

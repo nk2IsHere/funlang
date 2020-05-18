@@ -57,6 +57,7 @@ private fun Monotype.prettyInner(nested: Boolean): kotlin.String {
             val res = "${this.argument.prettyInner(true)} -> ${this.result.pretty()}"
             if(nested) "($res)" else res
         }
+        Monotype.Any -> "Any"
         Monotype.Double -> "Double"
         Monotype.String -> "String"
         Monotype.Bool -> "Bool"

@@ -98,6 +98,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
                     "Double" -> Monotype.Double
                     "String" -> Monotype.String
                     "Bool" -> Monotype.Bool
+                    "Any" -> Monotype.Any
                     else -> Monotype.Constructor(name, args)
                 }
             }
