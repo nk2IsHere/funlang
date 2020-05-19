@@ -48,6 +48,15 @@ fun Expression.showInner(depth: Int): Doc<Nothing> = when (this) {
         val myCases = cases.fold(nil()) { acc, it -> acc + showCase(it) + comma() + line() }
         header.group() + (line() + myCases).nest(2) + rBrace()
     }
+    is Expression.When -> {
+        val header = "when".text() + space() + field.show() + space() + "as".text() + space() + fieldRenamed.show() + lBrace()
+        val showCondition = { condition: Condition ->
+            (condition.condition?.show() ?: "_".text()) + space() + "=>".text() + space() + (line() +
+                condition.thenCase.show()).nest(2)
+        }
+        val myConditions = conditions.fold(nil()) { acc, it -> acc + showCondition(it) + comma() + line() }
+        header.group() + (line() + myConditions).nest(2) + rBrace()
+    }
 }
 
 private fun Monotype.prettyInner(nested: Boolean): kotlin.String {
@@ -93,3 +102,4 @@ fun Polytype.pretty(): String = if (vars.isEmpty()) {
 } else {
     "forall ${vars.joinToString()}. ${type.pretty()}"
 }
+fun Condition.pretty(): String = "${condition?.pretty() ?: "_"} => ${thenCase.pretty()}"

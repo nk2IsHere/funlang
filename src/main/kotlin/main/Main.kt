@@ -43,8 +43,18 @@ fun main() {
 //        map (\x. fizzbuzz x)  List::Val(1, List::Val(2, List::Val(3, List::Nil()))))
 //    """.trimIndent())
 
+//    val (type, result) = runProgram("""
+//        concat args_test (concat (str args_testBool) (concat (str args_testInt) "!!")))
+//    """.trimIndent(), "test" to "KEK!", "testInt" to 4, "testBool" to false)
+
     val (type, result) = runProgram("""
-        concat args_test (concat (str args_testBool) (concat (str args_testInt) "!!")))
-    """.trimIndent(), "test" to "KEK!", "testInt" to 4, "testBool" to false)
+        # i am a comment #
+        (\a. when a as xs {
+            eq xs 5 -> "55",
+            and (gt xs 10) (lt xs 100) -> "100",
+            lt xs 200 -> "200",
+            _ -> "1000", # me too! #
+        }) 231
+    """.trimIndent())
     println("type: $type\nresult: $result")
 }

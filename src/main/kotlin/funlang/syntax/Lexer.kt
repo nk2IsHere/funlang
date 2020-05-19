@@ -15,8 +15,8 @@ sealed class Token {
     object RParen : Token()
     object LBrace : Token()
     object RBrace : Token()
-    object LSqBrace : Token()
-    object RSqBrace : Token()
+    object LBracket : Token()
+    object RBracket : Token()
     object LAngle : Token()
     object RAngle : Token()
     object Lam : Token()
@@ -42,6 +42,10 @@ sealed class Token {
     object Else: Token()
     object Type: Token()
     object Match: Token()
+    object When: Token()
+    object As: Token()
+    object Underscore: Token()
+    object Comment: Token()
 }
 
 data class Position(val line: Int, val column: Int) {
@@ -52,20 +56,13 @@ data class Position(val line: Int, val column: Int) {
 }
 
 data class Span(val start: Position, val end: Position) {
-    companion object {
-        val DUMMY = Span(Position(-1, -1), Position(-1, -1))
-    }
-
     override fun toString(): String {
         return "${this.start}-${this.end}"
     }
 }
 data class Spanned<out T>(val span: Span, val value: T) {
-    // This is a bit dodgy... but any other option is too tedious
     override fun equals(other: Any?): Boolean {
-        if (other is Spanned<*>) {
-            return this.value == other.value
-        }
+        if (other is Spanned<*>) return this.value == other.value
         return false
     }
 
@@ -92,13 +89,20 @@ class Lexer(input: String) : Iterator<Spanned<Token>> {
             return Spanned(Span(start, start), EOF)
         }
 
+        // TODO Make adequate comment handing by rewriting lexer
+        if(iterator.peek() == '#') {
+            iterator.next()
+            while (iterator.next() != '#') { }
+            consumeWhitespace()
+        }
+
         val (token, length) = when (val c = iterator.next()) {
             '(' -> LParen to 1
             ')' -> RParen to 1
             '{' -> LBrace to 1
             '}' -> RBrace to 1
-            '[' -> LSqBrace to 1
-            ']' -> RSqBrace to 1
+            '[' -> LBracket to 1
+            ']' -> RBracket to 1
             '<' -> LAngle to 1
             '>' -> RAngle to 1
             '\\' -> Lam to 1
@@ -120,9 +124,10 @@ class Lexer(input: String) : Iterator<Spanned<Token>> {
                     Arrow to 2
                 }
                 iterator.peek().isDigit() -> doubleLiteral(c)
-                else -> error("arrow is an only supported construction which begins with \"-\"")
+                else -> error("unknown construction begins with \"-\"")
             }
             '"' -> stringLiteral()
+            '_' -> Underscore to 1
             else -> when {
                 c.isJavaIdentifierStart() -> ident(c)
                 c.isDigit() -> doubleLiteral(c)
@@ -182,6 +187,8 @@ class Lexer(input: String) : Iterator<Spanned<Token>> {
             "forall" -> Forall
             "type" -> Type
             "match" -> Match
+            "when" -> When
+            "as" -> As
             else -> if (result[0].isUpperCase()) { UpperIdent(result) } else { Ident(result) }
         } to result.length
     }

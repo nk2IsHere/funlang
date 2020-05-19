@@ -40,6 +40,7 @@ sealed class Expression {
     }
 
     data class If(val condition: Expression, val thenCase: Expression, val elseCase: Expression) : Expression()
+    data class When(val field: Expression, val fieldRenamed: Name, val elseCase: Expression?, val conditions: List<Condition>) : Expression()
 
     fun subst(v: Name, replacement: Expression): Expression =
         when (this) {
@@ -66,6 +67,11 @@ sealed class Expression {
             is Match -> this.copy(
                 expr = expr.subst(v, replacement),
                 cases = cases.map { it.subst(v, replacement) }
+            )
+            is When -> this.copy(
+                field = field.subst(v, replacement),
+                elseCase = elseCase?.subst(v, replacement),
+                conditions = conditions.map { it.subst(v, replacement) }
             )
         }
 
@@ -97,6 +103,10 @@ sealed class Expression {
             is Match -> expr.freeVars().also { res ->
                 cases.forEach { res.addAll(it.freeVars()) }
             }
+            is When -> field.freeVars().also { res ->
+                elseCase?.freeVars()?.also { res.addAll(it) }
+                conditions.forEach { res.addAll(it.freeVars()) }
+            }
         }
 }
 
@@ -111,6 +121,18 @@ data class Case(val pattern: Pattern, val expr: Expression) {
         if (pattern.binders().contains(v)) this
         else this.copy(
             expr = expr.subst(v, replacement)
+        )
+}
+
+data class Condition(val condition: Expression?, val thenCase: Expression) { // null is accepted in parsing as else branch
+    fun freeVars(): HashSet<Name> =
+        condition!!.freeVars()
+            .also { it.addAll(thenCase.freeVars()) }
+
+    fun subst(v: Name, replacement: Expression): Condition =
+        this.copy(
+            condition = condition!!.subst(v, replacement),
+            thenCase = thenCase.subst(v, replacement)
         )
 }
 

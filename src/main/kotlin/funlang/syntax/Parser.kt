@@ -187,6 +187,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
             is Token.If -> parseIf()
             is Token.UpperIdent -> parseDataConstruction()
             is Token.Match -> parseMatch()
+            is Token.When -> parseWhen()
             else -> null
         }
     }
@@ -250,10 +251,36 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
 
     private fun parseCase(): Case {
         val pattern = parsePattern()
-        expectNext<Token.Arrow>(expectedError("expected fat arrow"))
+        expectNext<Token.Arrow>(expectedError("expected arrow"))
         val body = parseExpression()
 
         return Case(pattern, body)
+    }
+
+    private fun parseWhen(): Expression.When {
+        iterator.next()
+        val field = parseExpression()
+        expectNext<Token.As>(expectedError("expected as"))
+        val fieldRenamed = parseName()
+        expectNext<Token.LBrace>(expectedError("expected open brace"))
+        val conditions = commaSeparated(::parseCondition) { it !is Token.RBrace }
+        expectNext<Token.RBrace>(expectedError("expected closing brace"))
+
+        if(conditions.isEmpty()) error(expectedError("expected at least one condition"))
+        return Expression.When(
+            field,
+            fieldRenamed,
+            conditions.firstOrNull { it.condition == null }?.thenCase,
+            conditions.filter { it.condition != null }
+        )
+    }
+
+    private fun parseCondition(): Condition {
+        val condition = if(iterator.peek().value !is Token.Underscore) parseExpression() else null.also { iterator.next() }
+        expectNext<Token.Arrow>(expectedError("expected arrow"))
+        val thenCase = parseExpression()
+
+        return Condition(condition, thenCase)
     }
 
     private fun parsePattern(): Pattern {
@@ -279,7 +306,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
 
         get<T>(token)?.let {
             return Spanned(span, it)
-        } ?: throw RuntimeException(error(Spanned(span, token)))
+        } ?: error(error(Spanned(span, token)))
     }
 
     private fun <T> commaSeparated(parser: () -> T, cont: (Token) -> Boolean): List<T> {

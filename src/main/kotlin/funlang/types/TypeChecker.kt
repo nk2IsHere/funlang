@@ -67,7 +67,7 @@ class TypeChecker(var checkState: CheckState) {
     private fun freshUnknown(): Monotype = Monotype.Unknown(++checkState.freshSupply)
 
     // Applies the current substitution to a given type
-    fun zonk(ty: Monotype): Monotype = checkState.substitution.apply(ty)
+    fun applySubstitution(ty: Monotype): Monotype = checkState.substitution.apply(ty)
 
     private fun instantiate(ty: Polytype): Monotype {
         var result = ty.type
@@ -124,20 +124,20 @@ class TypeChecker(var checkState: CheckState) {
         checkState.typeMap.tm[tyDecl.name] = TypeInfo(tyDecl.typeVariables, tyDecl.dataConstructors)
     }
 
-    fun unify(ty1: Monotype, ty2: Monotype) {
-        val ty1 = zonk(ty1)
-        val ty2 = zonk(ty2)
+    fun checkTypeCorrelation(ty1: Monotype, ty2: Monotype) {
+        val ty1 = applySubstitution(ty1)
+        val ty2 = applySubstitution(ty2)
 
         if (ty1 != ty2) {
             when {
                 ty1 is Monotype.Any || ty2 is Monotype.Any -> {/* Any does not require any unification rules */}
                 ty1 is Monotype.Constructor && ty2 is Monotype.Constructor -> {
-                    if (ty1.name != ty2.name) throw UnifyException(ty1, ty2, mutableListOf())
+                    if (ty1.name != ty2.name) throw TypeCorrelationException(ty1, ty2, mutableListOf())
                     try {
                         ty1.arguments.zip(ty2.arguments) { t1, t2 ->
-                            unify(t1, t2)
+                            checkTypeCorrelation(t1, t2)
                         }
-                    } catch (ex: UnifyException) {
+                    } catch (ex: TypeCorrelationException) {
                         ex.stack.add(ty1 to ty2)
                         throw ex
                     }
@@ -148,9 +148,9 @@ class TypeChecker(var checkState: CheckState) {
                 ty2 is Monotype.Var -> solveType(ty2.v.v, ty1)
                 ty1 is Monotype.Function && ty2 is Monotype.Function -> {
                     try {
-                        unify(ty1.argument, ty2.argument)
-                        unify(ty1.result, ty2.result)
-                    } catch (ex: UnifyException) {
+                        checkTypeCorrelation(ty1.argument, ty2.argument)
+                        checkTypeCorrelation(ty1.result, ty2.result)
+                    } catch (ex: TypeCorrelationException) {
                         ex.stack.add(ty1 to ty2)
                         throw ex
                     }
@@ -159,7 +159,7 @@ class TypeChecker(var checkState: CheckState) {
 //                    unify(ty1, ty2.argument)
 //                }
                 else -> {
-                    throw UnifyException(ty1, ty2, mutableListOf())
+                    throw TypeCorrelationException(ty1, ty2, mutableListOf())
                 }
             }
         }
@@ -167,7 +167,7 @@ class TypeChecker(var checkState: CheckState) {
 
     private fun subsumes(ty1: Polytype, ty2: Polytype) {
         // TODO higher-rank types
-        unify(instantiate(ty1), ty2.type)
+        checkTypeCorrelation(instantiate(ty1), ty2.type)
     }
 
     private fun inferPattern(pattern: Pattern, ty: Monotype): List<Pair<Name, Monotype>> {
@@ -175,7 +175,7 @@ class TypeChecker(var checkState: CheckState) {
             is Pattern.Constructor -> {
                 val (tyArgs, fields) = lookupDataConstructor(pattern.ty, pattern.dtor)
                 val freshVars = tyArgs.map { it to freshUnknown() }
-                unify(ty, Monotype.Constructor(pattern.ty, freshVars.map { it.second }))
+                checkTypeCorrelation(ty, Monotype.Constructor(pattern.ty, freshVars.map { it.second }))
                 pattern.fields.zip(fields).flatMap { (pat, ty) -> inferPattern(pat, ty.substMany(freshVars)) }
             }
             is Pattern.Var -> listOf(pattern.v to ty)
@@ -216,15 +216,15 @@ class TypeChecker(var checkState: CheckState) {
                 val tyResult = freshUnknown()
                 val tyFun = infer(env, expr.function)
                 val tyArg = infer(env, expr.argument)
-                unify(tyFun, Monotype.Function(tyArg, tyResult))
+                checkTypeCorrelation(tyFun, Monotype.Function(tyArg, tyResult))
                 tyResult
             }
             is Expression.If -> {
                 val tyCond = infer(env, expr.condition)
-                unify(tyCond, Monotype.Bool)
+                checkTypeCorrelation(tyCond, Monotype.Bool)
                 val tyThen = infer(env,expr.thenCase)
                 val tyElse = infer(env, expr.elseCase)
-                unify(tyThen, tyElse)
+                checkTypeCorrelation(tyThen, tyElse)
                 tyThen // Could just as well be tyElse
             }
             is Expression.Match -> {
@@ -233,7 +233,7 @@ class TypeChecker(var checkState: CheckState) {
                 expr.cases.forEach {
                     val typedNames = inferPattern(it.pattern, tyExpr)
                     val tyCase = infer(env.extendMono(typedNames), it.expr)
-                    unify(tyRes, tyCase)
+                    checkTypeCorrelation(tyRes, tyCase)
                 }
                 tyRes
             }
@@ -241,22 +241,37 @@ class TypeChecker(var checkState: CheckState) {
                 val (tyArgs, fields) = lookupDataConstructor(expr.ty, expr.dtor)
                 val freshVars = tyArgs.map { it to freshUnknown() }
                 expr.fields.zip(fields).forEach { (expr, ty) ->
-                    unify(ty.substMany(freshVars), infer(env, expr))
+                    checkTypeCorrelation(ty.substMany(freshVars), infer(env, expr))
                 }
                 Monotype.Constructor(expr.ty, freshVars.map { it.second })
+            }
+            is Expression.When -> {
+                val tyField = infer(env, expr.field)
+                val replacedNameEnv = env.extendMono(expr.fieldRenamed, tyField)
+                expr.conditions.asSequence()
+                    .filter { it.condition != null }
+                    .map { infer(replacedNameEnv, it.condition!!) }
+                    .forEach { checkTypeCorrelation(it, Monotype.Bool) }
+
+                val tyThenCases = expr.conditions.map { infer(replacedNameEnv, it.thenCase) }
+                (1 until tyThenCases.size).forEach {
+                    checkTypeCorrelation(tyThenCases[it-1], tyThenCases[it])
+                }
+
+                tyThenCases[0]
             }
         }
 
     fun inferExpr(env: Environment, expr: Expression): Monotype =
-        zonk(infer(env, expr))
+        applySubstitution(infer(env, expr))
 }
 
-data class UnifyException(val ty1: Monotype, val ty2: Monotype, val stack: MutableList<Pair<Monotype, Monotype>>) :
+data class TypeCorrelationException(val ty1: Monotype, val ty2: Monotype, val stack: MutableList<Pair<Monotype, Monotype>>) :
     Exception() {
     override fun toString(): String {
         return """
-            Failed to match ${ty1.pretty()} with ${ty2.pretty()}
-            ${stack.joinToString("\n  ") { (t1, t2) -> "while trying to match ${t1.pretty()} with ${t2.pretty()}" }}
+            Failed to correlate ${ty1.pretty()} with ${ty2.pretty()}
+            ${stack.joinToString("\n  ") { (t1, t2) -> "while trying to correlate ${t1.pretty()} with ${t2.pretty()}" }}
         """.trimIndent()
     }
 }

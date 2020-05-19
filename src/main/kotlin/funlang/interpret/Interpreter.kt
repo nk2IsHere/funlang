@@ -1,5 +1,6 @@
 package funlang.interpret
 
+import arrow.core.extensions.list.foldable.foldRight
 import funlang.syntax.*
 import funlang.types.*
 import kotlin.math.sqrt
@@ -27,6 +28,8 @@ sealed class IR {
     data class Constructor(val ty: Name, val dtor: Name, val values: List<IR>) : IR()
     data class Match(val scrutinee: IR, val cases: List<Case>) : IR()
     data class Case(val ty: Name, val dtor: Name, val binders: List<Name>, val body: IR): IR()
+    data class When(val scrutinee: IR, val renamedScrutinee: Name, val elseCase: IR?, val conditions: List<Condition>): IR()
+    data class Condition(val condition: IR, val thenCase: IR): IR()
 
     internal fun eval(env: IREnv): IR {
         return when (this) {
@@ -65,7 +68,7 @@ sealed class IR {
             }
             is Constructor -> Constructor(ty, dtor, values.map { it.eval(env) })
             is Match -> {
-                val scrutinee = scrutinee.eval(env) as? Constructor ?: error("Only type matching is currently supported in match construction")
+                val scrutinee = scrutinee.eval(env) as? Constructor ?: error("Only type matching is supported in match construction")
                 val case = cases.first { it.ty == scrutinee.ty && it.dtor == scrutinee.dtor }
 
                 val tmpEnv = env.copy()
@@ -75,6 +78,18 @@ sealed class IR {
                 return case.eval(tmpEnv)
             }
             is Case -> body.eval(env)
+            is When -> {
+                val scrutinee = scrutinee.eval(env)
+                val tmpEnv = env.copy()
+                tmpEnv[renamedScrutinee] = scrutinee
+
+                val case = conditions.firstOrNull { it.condition.eval(tmpEnv).matchBool() }
+                    ?: elseCase
+                    ?: error("when didn't match any condition for $scrutinee")
+
+                case.eval(tmpEnv)
+            }
+            is Condition -> thenCase.eval(env)
         }
     }
 
@@ -109,6 +124,10 @@ sealed class IR {
                 is String -> this.string
                 else -> this.toString()
             } })
+            "#and" -> Bool(env[Name("x")]!!.matchBool() and env[Name("y")]!!.matchBool())
+            "#or" -> Bool(env[Name("x")]!!.matchBool() or env[Name("y")]!!.matchBool())
+            "#xor" -> Bool(env[Name("x")]!!.matchBool() xor env[Name("y")]!!.matchBool())
+            "#not" -> Bool(!env[Name("x")]!!.matchBool())
             else -> throw Exception("Unknown primitive $prim")
         }
     }
@@ -137,7 +156,11 @@ sealed class IR {
                 primBinary("lte"),
                 primBinary("eq"),
                 primBinary("concat"),
-                primUnary("str")
+                primUnary("str"),
+                primBinary("and"),
+                primBinary("or"),
+                primBinary("xor"),
+                primUnary("not")
             )
         )
 
@@ -163,6 +186,12 @@ sealed class IR {
             is Expression.If -> If(fromExpr(expr.condition, typeMap), fromExpr(expr.thenCase, typeMap), fromExpr(expr.elseCase, typeMap))
             is Expression.Constructor -> Constructor(expr.ty, expr.dtor, expr.fields.map { fromExpr(it, typeMap) })
             is Expression.Match -> Match(fromExpr(expr.expr, typeMap), expr.cases.map { caseFromExpr(it, typeMap) })
+            is Expression.When -> When(
+                fromExpr(expr.field, typeMap),
+                expr.fieldRenamed,
+                expr.elseCase?.let { fromExpr(it, typeMap) },
+                expr.conditions.map { conditionFromExpr(it, typeMap) }
+            )
         }
 
         private fun caseFromExpr(case: funlang.syntax.Case, typeMap: TypeMap): Case {
@@ -179,6 +208,12 @@ sealed class IR {
                 fromExpr(case.expr, typeMap)
             )
         }
+
+        private fun conditionFromExpr(condition: funlang.syntax.Condition, typeMap: TypeMap): Condition
+            = Condition(
+                fromExpr(condition.condition!!, typeMap),
+                fromExpr(condition.thenCase, typeMap)
+            )
     }
 }
 
@@ -196,7 +231,11 @@ class TypeInferrer {
         "lte" to "Double -> Double -> Bool",
         "eq" to "Any -> Any -> Bool",
         "str" to "Any -> String",
-        "concat" to "Any -> Any -> String"
+        "concat" to "Any -> Any -> String",
+        "and" to "Bool -> Bool -> Bool",
+        "or" to "Bool -> Bool -> Bool",
+        "xor" to "Bool -> Bool -> Bool",
+        "not" to "Bool -> Bool"
     ).fold(Environment()) { acc, (name, ty) ->
         acc.extend(Name(name), Parser.parseType(ty))
     }
@@ -232,7 +271,7 @@ fun runProgram(input: String, vararg envArguments: Pair<String, Any>): Pair<Mono
     }
     val type = try {
         TypeInferrer().infer(expr, typeMap, *envArguments)
-    } catch (e: UnifyException) {
+    } catch (e: TypeCorrelationException) {
         println("Type interference failed")
         e.printStackTrace()
         null
