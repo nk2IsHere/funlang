@@ -1,5 +1,12 @@
 # funlang
-Wannabe-Haskell language written on Kotlin
+Functional language written on Kotlin
+> The main idea behind its developement is to create a language which will quickly compute or handle any required logic with potential jvm interop without any side effects and nulls!
+
+### Keypoints:
+- 4 basic types: Double (64-bit IEEE), Bool, String, Lambda
+- Each expression must return something not null
+- Every basic thing, like adding is a function
+- There is no (and there will be no) input or output using system streams
 
 ### How to run program:
 > Simply import `funlang.interpret.runProgram` and call `runProgram`\
@@ -14,16 +21,18 @@ Wannabe-Haskell language written on Kotlin
 `sqrt 10` - calculates square rectangle from double\
 `gt(or gte, lt, lte) 3 3` - `>`, `>=`, `<`, `<=` using two doubles\
 `concat "a" "!"` - adds two strings\
-`str 2.13` - converts type to string
+`str 2.13` - converts type to string\
+`and(or, xor) true false` - bool operations using two doubles\
+
 
 ### TODO:
 - Write tests (😂👌👌👌👌)
+- Rewrite lexer (it's just bad)
 - Restrict usage of tyvar type agruments only for handling polytypes
-- Add when, where construction
+- Add where construction
 - Add examples on types, match and where constructions
 - Add modules (separate files with types and its specific functions)
 - Support higher-order types
-- Allow types to be declared everywhere (currently those can be declared only on top of the program)
 
 ### Examples:
 #### Double (basically any number is double)
@@ -127,4 +136,15 @@ val (type, result) = runProgram("""
     
 """.trimIndent(), "test" to "KEK!", "testInt" to 4, "testBool" to false)
 println("type: $type\nresult: $result")
+```
+
+#### When with comments! (WILL BE CHANGED)
+```
+# this is a when construction, an if the good way! #
+(\a. when a as xs { # every when must rename its input expression using as, this means that you can eval things there! #
+    eq xs 5 -> "55", # this is a basic branch: condition -> if condition is fullfilled call this #
+    and (gt xs 10) (lt xs 100) -> "100",
+    lt xs 200 -> "200",
+    _ -> "1000",  # this is an else branch: _ -> if every other failed #
+}) 231 # although else branch is not required, each thing in funlang MUST return something (not null!!) #
 ```
