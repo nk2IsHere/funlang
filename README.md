@@ -148,3 +148,15 @@ println("type: $type\nresult: $result")
     _ -> "1000",  # this is an else branch: _ -> if every other failed #
 }) 231 # although else branch is not required, each thing in funlang MUST return something (not null!!) #
 ```
+
+#### Fibonacci the good way
+```
+let rec fib =
+    \n. \a. \b.
+        when n as xs {
+            eq xs 0 -> a,
+            _ -> fib (sub n 1) (b) (add a b)
+        }
+
+in fib 200 0 1
+```
