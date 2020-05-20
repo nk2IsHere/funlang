@@ -23,6 +23,7 @@ Functional language written on Kotlin
 `concat "a" "!"` - adds two strings\
 `str 2.13` - converts type to string\
 `and(or, xor) true false` - bool operations using two doubles\
+`not true` = false!
 
 
 ### TODO:
