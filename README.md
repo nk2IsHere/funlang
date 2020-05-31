@@ -2,11 +2,18 @@
 Functional language written on Kotlin
 > The main idea behind its developement is to create a language which will quickly compute or handle any required logic with potential jvm interop without any side effects and nulls!
 
+### The language is going to change its direction!
+- main parts (parser, ast, ir) will be rewritten on dart
+- compiler to dart will be added
+- pure functional manners will be deprecated
+- Null will be added (functions will be able to return nothing)
+- dart ecosystem interop will be created
+
 ### Keypoints:
-- 4 basic types: Double (64-bit IEEE), Bool, String, Lambda
-- Each expression must return something not null
+- 4 basic types: Double (64-bit IEEE), Bool, String, Lambda, Null
+- Each expression must return something not null - [Deprecated]
 - Every basic thing, like adding is a function
-- There is no (and there will be no) input or output using system streams
+- There is no (and there will be no) input or output using system streams - [Deprecated]
 
 ### How to run program:
 > Simply import `funlang.interpret.runProgram` and call `runProgram`\
