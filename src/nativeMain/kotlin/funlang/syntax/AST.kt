@@ -1,6 +1,6 @@
 package funlang.syntax
 
-inline class Name(val v: String) {
+value class Name(val v: String) {
     override fun toString(): String = v
 }
 
@@ -151,7 +151,7 @@ sealed class Pattern {
     }
 }
 
-inline class TyVar(val v: String) {
+value class TyVar(val v: String) {
     override fun toString(): String = v
 }
 
@@ -228,8 +228,6 @@ sealed class Monotype {
             acc.subst(name, ty)
         }
     }
-
-    override fun toString() = pretty()
 }
 
 data class Polytype(val vars: List<TyVar>, val type: Monotype) {

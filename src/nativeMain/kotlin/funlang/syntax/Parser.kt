@@ -304,20 +304,17 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
     private inline fun <reified T> expectNext(error: (token: Spanned<Token>) -> String): Spanned<T> {
         val (span, token) = iterator.next()
 
-        get<T>(token)?.let {
-            return Spanned(span, it)
-        } ?: error(error(Spanned(span, token)))
+        get<T>(token)?.let { return Spanned(span, it) }
+            ?: error(error(Spanned(span, token)))
     }
 
     private fun <T> commaSeparated(parser: () -> T, cont: (Token) -> Boolean): List<T> {
         val result = mutableListOf<T>()
         while (cont(iterator.peek().value)) {
             result += parser()
-            if (iterator.peek().value == Token.Comma) {
-                iterator.next()
-            } else {
-                break
-            }
+
+            if (iterator.peek().value == Token.Comma) iterator.next()
+            else break
         }
         return result
     }

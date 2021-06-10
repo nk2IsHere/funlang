@@ -16,7 +16,7 @@ data class Substitution(val subst: HashMap<String, Monotype>) {
         }
 
     override fun toString(): String =
-        "{ " + subst.toList().joinToString("\n, ") { (u, ty) -> "u$u ↦ ${ty.pretty()}" } + "\n}"
+        "{ " + subst.toList().joinToString("\n, ") { (u, ty) -> "u$u ↦ $ty" } + "\n}"
 }
 
 data class Environment(val env: PersistentMap<Name, Polytype> = persistentHashMapOf()) {
@@ -124,7 +124,7 @@ class TypeChecker(var checkState: CheckState) {
         checkState.typeMap.tm[tyDecl.name] = TypeInfo(tyDecl.typeVariables, tyDecl.dataConstructors)
     }
 
-    fun checkTypeCorrelation(ty1: Monotype, ty2: Monotype) {
+    private fun checkTypeCorrelation(ty1: Monotype, ty2: Monotype) {
         val ty1 = applySubstitution(ty1)
         val ty2 = applySubstitution(ty2)
 
@@ -270,8 +270,8 @@ data class TypeCorrelationException(val ty1: Monotype, val ty2: Monotype, val st
     Exception() {
     override fun toString(): String {
         return """
-            Failed to correlate ${ty1.pretty()} with ${ty2.pretty()}
-            ${stack.joinToString("\n  ") { (t1, t2) -> "while trying to correlate ${t1.pretty()} with ${t2.pretty()}" }}
+            Failed to correlate $ty1 with $ty2
+            ${stack.joinToString("\n  ") { (t1, t2) -> "while trying to correlate $t1 with $t2" }}
         """.trimIndent()
     }
 }

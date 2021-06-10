@@ -3,7 +3,7 @@ package funlang.syntax
 import funlang.syntax.Token.*
 
 sealed class Token {
-    override fun toString(): String = this.javaClass.simpleName
+    override fun toString(): String = this::class.simpleName ?: ""
 
     companion object {
         inline fun <reified T> get(token: Token): T? {
@@ -71,7 +71,10 @@ data class Spanned<out T>(val span: Span, val value: T) {
     }
 }
 
-class Lexer(input: String) : Iterator<Spanned<Token>> {
+val identifierStartRegex = Regex("[a-zA-Z\$_]")
+val identifierPartRegex = Regex("[a-z0-9A-Z\$_]")
+
+class Lexer(input: String): Iterator<Spanned<Token>> {
     var iterator = CharLocations(input.iterator())
 
     init {
@@ -87,13 +90,6 @@ class Lexer(input: String) : Iterator<Spanned<Token>> {
 
         if (!iterator.hasNext()) {
             return Spanned(Span(start, start), EOF)
-        }
-
-        // TODO Make adequate comment handing by rewriting lexer
-        if(iterator.peek() == '#') {
-            iterator.next()
-            while (iterator.next() != '#') { }
-            consumeWhitespace()
         }
 
         val (token, length) = when (val c = iterator.next()) {
@@ -129,7 +125,7 @@ class Lexer(input: String) : Iterator<Spanned<Token>> {
             '"' -> stringLiteral()
             '_' -> Underscore to 1
             else -> when {
-                c.isJavaIdentifierStart() -> ident(c)
+                "$c".matches(identifierStartRegex) -> ident(c)
                 c.isDigit() -> doubleLiteral(c)
                 else -> error("$c does not correspond to any recognizable character by lexer")
             }
@@ -171,7 +167,7 @@ class Lexer(input: String) : Iterator<Spanned<Token>> {
 
     private fun ident(startChar: Char): Pair<Token, Int> {
         var result: String = startChar.toString()
-        while (iterator.hasNext() && iterator.peek().isJavaIdentifierPart()) {
+        while (iterator.hasNext() && "${iterator.peek()}".matches(identifierPartRegex)) {
             result += iterator.next()
         }
 
@@ -228,11 +224,7 @@ class CharLocations(private val iterator: Iterator<Char>) : Iterator<Char> {
     var position = Position(1, 0)
 
     override fun hasNext(): Boolean {
-        return if (lookahead != null) {
-            true
-        } else {
-            iterator.hasNext()
-        }
+        return if (lookahead != null) true else iterator.hasNext()
     }
 
     override fun next(): Char {
@@ -250,11 +242,10 @@ class CharLocations(private val iterator: Iterator<Char>) : Iterator<Char> {
     }
 
     private fun nextChar(c: Char): Char {
-        position = if (c == '\n') {
-            Position(position.line + 1, 0)
-        } else {
-            Position(position.line, position.column + 1)
-        }
+        position = (
+            if (c == '\n') Position(position.line + 1, 0)
+            else Position(position.line, position.column + 1)
+        )
 
         return c
     }

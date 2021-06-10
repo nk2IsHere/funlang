@@ -1,11 +1,10 @@
 package funlang.interpret
 
-import arrow.core.extensions.list.foldable.foldRight
 import funlang.syntax.*
 import funlang.types.*
 import kotlin.math.sqrt
 
-inline class IREnv(val env: HashMap<Name, IR> = HashMap()) {
+value class IREnv(private val env: HashMap<Name, IR> = HashMap()) {
     operator fun get(name: Name): IR? = env[name]
     fun copy(): IREnv = IREnv(HashMap(env))
     operator fun set(binder: Name, value: IR) {
@@ -256,7 +255,8 @@ class TypeInferrer {
 }
 
 fun runProgram(input: String, vararg envArguments: Pair<String, Any>): Pair<Monotype?, IR> {
-    val (types, expr) = Parser.parseExpression(input)
+    val inputPreprocessed = Preprocessor(input).process()
+    val (types, expr) = Parser.parseExpression(inputPreprocessed)
     val typeMap = TypeMap(HashMap())
     types.forEach { typeMap.tm[it.name] = TypeInfo(it.typeVariables, it.dataConstructors) }
 
