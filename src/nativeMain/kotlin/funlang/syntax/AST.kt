@@ -9,132 +9,28 @@ sealed class Expression {
     data class Bool(val bool: Boolean) : Expression()
     data class String(val string: kotlin.String) : Expression()
     data class Var(val name: Name) : Expression()
-    data class Let(val binder: Name, val type: Polytype?, val expr: Expression, val body: Expression) : Expression()
-    data class LetRec(val binder: Name, val type: Polytype?, val expr: Expression, val body: Expression) : Expression()
+    data class Let(val binder: Name, val type: Polytype?, val expr: Expression) : Expression()
+    data class LetRec(val binder: Name, val type: Polytype?, val expr: Expression) : Expression()
     data class Constructor(val ty: Name, val dtor: Name, val fields: List<Expression>) : Expression()
     data class Match(val expr: Expression, val cases: List<Case>) : Expression()
-    data class Lambda(val binder: Name, val body: Expression) : Expression() {
-        fun fold(): Pair<List<Name>, Expression> =
-            when (body) {
-                is Lambda -> {
-                    val (innerArgs, closureBody) = body.fold()
-                    listOf(binder) + innerArgs to closureBody
-                }
-                else -> listOf(binder) to body
-            }
+    data class Lambda(val binder: Name, val body: Expression) : Expression()
 
-        fun substLam(v: Name, replacement: Expression): Lambda =
-            if (v == binder) this
-            else this.copy(body = body.subst(v, replacement))
-    }
-
-    data class App(val function: Expression, val argument: Expression) : Expression() {
-        fun unfold(): Pair<Expression, List<Expression>> =
-            when (function) {
-                is App -> {
-                    val (func, args) = function.unfold()
-                    func to args + listOf(argument)
-                }
-                else -> function to listOf(argument)
-            }
-    }
+    data class App(val function: Expression, val argument: Expression) : Expression()
 
     data class If(val condition: Expression, val thenCase: Expression, val elseCase: Expression) : Expression()
     data class When(val field: Expression, val fieldRenamed: Name, val elseCase: Expression?, val conditions: List<Condition>) : Expression()
 
-    fun subst(v: Name, replacement: Expression): Expression =
-        when (this) {
-            is Double, is Bool, is String -> this
-            is Var -> if (v == name) replacement else this
-            is Lambda -> substLam(v, replacement)
-            is App -> this.copy(function = function.subst(v, replacement), argument = argument.subst(v, replacement))
-            is Let -> this.copy(
-                expr = expr.subst(v, replacement),
-                body = if (v == binder) body else body.subst(v, replacement)
-            )
-            is LetRec -> if (v == binder) this else this.copy(
-                expr = expr.subst(v, replacement),
-                body = body.subst(v, replacement)
-            )
-            is If -> this.copy(
-                condition = condition.subst(v, replacement),
-                thenCase = thenCase.subst(v, replacement),
-                elseCase = elseCase.subst(v, replacement)
-            )
-            is Constructor -> this.copy(
-                fields = fields.map { it.subst(v, replacement) }
-            )
-            is Match -> this.copy(
-                expr = expr.subst(v, replacement),
-                cases = cases.map { it.subst(v, replacement) }
-            )
-            is When -> this.copy(
-                field = field.subst(v, replacement),
-                elseCase = elseCase?.subst(v, replacement),
-                conditions = conditions.map { it.subst(v, replacement) }
-            )
-        }
-
-    fun freeVars(): HashSet<Name> =
-        when(this) {
-            is Double, is Bool, is String -> hashSetOf()
-            is Var -> hashSetOf(name)
-            is Lambda -> body.freeVars().also { it.remove(binder) }
-            is App -> function.freeVars().also {
-                it.addAll(argument.freeVars())
-            }
-            is Let -> body.freeVars().also {
-                it.remove(binder)
-                it.addAll(expr.freeVars())
-            }
-            is LetRec -> expr.freeVars().also {
-                it.addAll(body.freeVars())
-                it.remove(binder)
-            }
-            is If -> condition.freeVars().also {
-                it.addAll(thenCase.freeVars())
-                it.addAll(elseCase.freeVars())
-            }
-            is Constructor -> {
-                val res = hashSetOf<Name>()
-                fields.forEach { res.addAll(it.freeVars()) }
-                res
-            }
-            is Match -> expr.freeVars().also { res ->
-                cases.forEach { res.addAll(it.freeVars()) }
-            }
-            is When -> field.freeVars().also { res ->
-                elseCase?.freeVars()?.also { res.addAll(it) }
-                conditions.forEach { res.addAll(it.freeVars()) }
-            }
-        }
+    data class TypeDeclaration(
+        val name: Name,
+        val typeVariables: List<TyVar>,
+        val dataConstructors: List<DataConstructor>
+    ): Expression()
 }
 
-data class Case(val pattern: Pattern, val expr: Expression) {
-    fun freeVars(): HashSet<Name> {
-        val res = expr.freeVars()
-        res.removeAll(pattern.binders())
-        return res
-    }
+data class Case(val pattern: Pattern, val expr: Expression)
 
-    fun subst(v: Name, replacement: Expression): Case =
-        if (pattern.binders().contains(v)) this
-        else this.copy(
-            expr = expr.subst(v, replacement)
-        )
-}
+data class Condition(val condition: Expression?, val thenCase: Expression) // null is accepted in parsing as else branch
 
-data class Condition(val condition: Expression?, val thenCase: Expression) { // null is accepted in parsing as else branch
-    fun freeVars(): HashSet<Name> =
-        condition!!.freeVars()
-            .also { it.addAll(thenCase.freeVars()) }
-
-    fun subst(v: Name, replacement: Expression): Condition =
-        this.copy(
-            condition = condition!!.subst(v, replacement),
-            thenCase = thenCase.subst(v, replacement)
-        )
-}
 
 sealed class Pattern {
     data class Constructor(val ty: Name, val dtor: Name, val fields: List<Pattern>) : Pattern()
@@ -154,12 +50,6 @@ sealed class Pattern {
 value class TyVar(val v: String) {
     override fun toString(): String = v
 }
-
-data class TypeDeclaration(
-    val name: Name,
-    val typeVariables: List<TyVar>,
-    val dataConstructors: List<DataConstructor>
-)
 
 data class DataConstructor(val name: Name, val args: List<Monotype>)
 

@@ -1,13 +1,14 @@
 import org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTargetWithTests
 
 plugins {
-    id 'org.jetbrains.kotlin.multiplatform' version '1.5.0'
+    id 'org.jetbrains.kotlin.multiplatform' version '1.5.21'
 }
 
 group = 'funlang'
 version = '0.0.1'
 
 repositories {
+    maven { url("https://dl.bintray.com/korlibs/korlibs") }
     mavenCentral()
 }
 
@@ -30,7 +31,9 @@ kotlin {
     sourceSets {
         commonMain {
             dependencies {
+                implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.5.1")
                 implementation("org.jetbrains.kotlinx:kotlinx-collections-immutable:0.3.4")
+                implementation("com.soywiz.korlibs.korio:korio:2.3.1")
             }
         }
         nativeMain {
@@ -38,6 +41,20 @@ kotlin {
         }
         nativeTest {
 
+        }
+    }
+}
+
+task prepareTestCases {
+    shouldRunAfter build
+    doLast {
+        copy {
+            from 'test'
+            into "$buildDir/bin/native/debugExecutable/test"
+        }
+        copy {
+            from 'test'
+            into "$buildDir/bin/native/releaseExecutable/test"
         }
     }
 }

@@ -1,7 +1,6 @@
 package funlang.interpret
 
 import funlang.syntax.*
-import funlang.types.*
 import kotlin.math.sqrt
 
 value class IREnv(private val env: HashMap<Name, IR> = HashMap()) {
@@ -22,7 +21,7 @@ sealed class IR {
     data class Lambda(val binder: Name, val body: IR) : IR()
     data class Closure(val binder: Name, val body: IR, val env: IREnv) : IR()
     data class App(val function: IR, val argument: IR) : IR()
-    data class Let(val recursive: Boolean, val binder: Name, val expr: IR, val body: IR) : IR()
+    data class Let(val recursive: Boolean, val binder: Name, val expr: IR) : IR()
     data class If(val condition: IR, val thenCase: IR, val elseCase: IR) : IR()
     data class Constructor(val ty: Name, val dtor: Name, val values: List<IR>) : IR()
     data class Match(val scrutinee: IR, val cases: List<Case>) : IR()
@@ -46,7 +45,7 @@ sealed class IR {
                 }
                 else -> throw Exception("$closure is not a function")
             }
-            is Let -> when {
+            is Let -> TODO()/*when {
                 recursive -> {
                     val tmpEnv = env.copy()
                     val closure = expr.eval(env)
@@ -60,7 +59,7 @@ sealed class IR {
                     tmpEnv[binder] = expr.eval(env)
                     body.eval(tmpEnv)
                 }
-            }
+            }*/
             is If -> when {
                 condition.eval(env).matchBool() -> thenCase.eval(env)
                 else -> elseCase.eval(env)
@@ -173,27 +172,28 @@ sealed class IR {
                 Name(prim) to Closure(Name("x"), Lambda(Name("y"), Var(Name("#$prim"))), this)
             }
 
-        internal fun fromExpr(expr: Expression, typeMap: TypeMap): IR = when (expr) {
+        internal fun fromExpr(expr: Expression): IR = when (expr) {
             is Expression.Double -> Double(expr.double)
             is Expression.Bool -> Bool(expr.bool)
             is Expression.String -> String(expr.string)
             is Expression.Var -> Var(expr.name)
-            is Expression.Lambda -> Lambda(expr.binder, fromExpr(expr.body, typeMap))
-            is Expression.App -> App(fromExpr(expr.function, typeMap), fromExpr(expr.argument, typeMap))
-            is Expression.Let -> Let(false, expr.binder, fromExpr(expr.expr, typeMap), fromExpr(expr.body, typeMap))
-            is Expression.LetRec -> Let(true, expr.binder, fromExpr(expr.expr, typeMap), fromExpr(expr.body, typeMap))
-            is Expression.If -> If(fromExpr(expr.condition, typeMap), fromExpr(expr.thenCase, typeMap), fromExpr(expr.elseCase, typeMap))
-            is Expression.Constructor -> Constructor(expr.ty, expr.dtor, expr.fields.map { fromExpr(it, typeMap) })
-            is Expression.Match -> Match(fromExpr(expr.expr, typeMap), expr.cases.map { caseFromExpr(it, typeMap) })
+            is Expression.Lambda -> Lambda(expr.binder, fromExpr(expr.body))
+            is Expression.App -> App(fromExpr(expr.function), fromExpr(expr.argument))
+            is Expression.Let -> Let(false, expr.binder, fromExpr(expr.expr))
+            is Expression.LetRec -> Let(true, expr.binder, fromExpr(expr.expr))
+            is Expression.If -> If(fromExpr(expr.condition), fromExpr(expr.thenCase), fromExpr(expr.elseCase))
+            is Expression.Constructor -> Constructor(expr.ty, expr.dtor, expr.fields.map { fromExpr(it) })
+            is Expression.Match -> Match(fromExpr(expr.expr), expr.cases.map { caseFromExpr(it) })
             is Expression.When -> When(
-                fromExpr(expr.field, typeMap),
+                fromExpr(expr.field),
                 expr.fieldRenamed,
-                expr.elseCase?.let { fromExpr(it, typeMap) },
-                expr.conditions.map { conditionFromExpr(it, typeMap) }
+                expr.elseCase?.let { fromExpr(it) },
+                expr.conditions.map { conditionFromExpr(it) }
             )
+            is Expression.TypeDeclaration -> TODO()
         }
 
-        private fun caseFromExpr(case: funlang.syntax.Case, typeMap: TypeMap): Case {
+        private fun caseFromExpr(case: funlang.syntax.Case): Case {
             if (case.pattern !is Pattern.Constructor) error("Non constructor pattern")
             val binders = case.pattern.fields.map {
                 if (it !is Pattern.Var) throw Exception("Non var pattern")
@@ -204,61 +204,21 @@ sealed class IR {
                 case.pattern.ty,
                 case.pattern.dtor,
                 binders,
-                fromExpr(case.expr, typeMap)
+                fromExpr(case.expr)
             )
         }
 
-        private fun conditionFromExpr(condition: funlang.syntax.Condition, typeMap: TypeMap): Condition
+        private fun conditionFromExpr(condition: funlang.syntax.Condition): Condition
             = Condition(
-                fromExpr(condition.condition!!, typeMap),
-                fromExpr(condition.thenCase, typeMap)
+                fromExpr(condition.condition!!),
+                fromExpr(condition.thenCase)
             )
     }
 }
 
-class TypeInferrer {
-    private val initialEnv =  listOf(
-        "add" to "Double -> Double -> Double",
-        "sub" to "Double -> Double -> Double",
-        "mul" to "Double -> Double -> Double",
-        "div" to "Double -> Double -> Double",
-        "mod" to "Double -> Double -> Double",
-        "sqrt" to "Double -> Double",
-        "gt" to "Double -> Double -> Bool",
-        "gte" to "Double -> Double -> Bool",
-        "lt" to "Double -> Double -> Bool",
-        "lte" to "Double -> Double -> Bool",
-        "eq" to "Any -> Any -> Bool",
-        "str" to "Any -> String",
-        "concat" to "Any -> Any -> String",
-        "and" to "Bool -> Bool -> Bool",
-        "or" to "Bool -> Bool -> Bool",
-        "xor" to "Bool -> Bool -> Bool",
-        "not" to "Bool -> Bool"
-    ).fold(Environment()) { acc, (name, ty) ->
-        acc.extend(Name(name), Parser.parseType(ty))
-    }
-
-    fun infer(expr: Expression, typeMap: TypeMap, vararg envArguments: Pair<String, Any>) =
-        TypeChecker(CheckState.initial()).withTypeMap(typeMap)
-            .inferExpr(
-                envArguments.fold(initialEnv, { acc, (key, value) ->
-                    acc.extendMono(Name("args_$key"), when(value) {
-                        is Number -> Monotype.Double
-                        is String -> Monotype.String
-                        is Boolean -> Monotype.Bool
-                        else -> error("$value is not supported as an argument")
-                    })
-                }),
-                expr
-            )
-}
-
-fun runProgram(input: String, vararg envArguments: Pair<String, Any>): Pair<Monotype?, IR> {
+fun runProgram(input: String, vararg envArguments: Pair<String, Any>): IR {
     val inputPreprocessed = Preprocessor(input).process()
-    val (types, expr) = Parser.parseExpression(inputPreprocessed)
-    val typeMap = TypeMap(HashMap())
-    types.forEach { typeMap.tm[it.name] = TypeInfo(it.typeVariables, it.dataConstructors) }
+    val exprs = Parser.parseExpression(inputPreprocessed)
 
     val env = IR.makeEnv()
     envArguments.forEach { (key, value) ->
@@ -269,15 +229,13 @@ fun runProgram(input: String, vararg envArguments: Pair<String, Any>): Pair<Mono
             else -> error("$value is not supported as an argument")
         }
     }
-    val type = try {
-        TypeInferrer().infer(expr, typeMap, *envArguments)
-    } catch (e: TypeCorrelationException) {
-        println("Type interference failed")
-        e.printStackTrace()
-        null
-    }
-    val ir = IR.fromExpr(expr, typeMap)
 
+    println(exprs)
 
-    return type to ir.eval(env)
+    return IR.Double(0.0)
+
+//    val ir = IR.fromExpr(expr)
+//
+//
+//    return type to ir.eval(env)
 }

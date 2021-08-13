@@ -2,21 +2,17 @@
 Functional language written on Kotlin
 > The funlang.main idea behind its developement is to create a language which will quickly compute or handle any required logic with potential jvm interop without any side effects and nulls!
 
-### The language is going to change its direction!
-- pure functional manners will be deprecated
-- Null will be added (functions will be able to return nothing)
-
 ### Keypoints:
-- 4 basic types: Double (64-bit IEEE), Bool, String, Lambda, Null
-- Each expression must return something not null - [Deprecated]
+- 4 basic types: Double (64-bit IEEE), Bool, String, Lambda, Let (Named anything)
+- Each expression must return something
 - Every basic thing, like adding is a function
-- There is no (and there will be no) input or output using system streams - [Deprecated]
+- There is no (and there will be no) input or output using system streams - [Deprecated, very lazy to do that]
 
 ### How to run program:
 > Simply import `funlang.interpret.runProgram` and call `runProgram`\
-  Pair of inferred (if possible) Type and Result will be returned
+  Result will be returned
 
-### Standart functions:
+### Standard functions:
 `add 2 5` - adds two doubles\
 `sub 5 2` - subtracts two doubles\
 `mul 5 24` - multiplies two doubles\
@@ -33,39 +29,48 @@ Functional language written on Kotlin
 ### TODO:
 - Write tests (😂👌👌👌👌)
 - Rewrite lexer (it's just bad)
-- Restrict usage of tyvar type agruments only for handling polytypes
-- Add where construction
 - Add examples on types, match and where constructions
 - Add modules (separate files with types and its specific functions)
-- Support higher-order types
+- Redo type system
+- Add Dicts (and Lists (Dict<Double, Any>))
 
 ### Examples:
 #### Double (basically any number is double)
 ```
-5.0
+let main =
+  \args.
+    5.0
 ```
 
 #### Bool
 ```
-false
+let main =
+  \args.
+    false
 ```
 
 #### String
 ```
-"I am string!"
+let main =
+  \args.
+    "I am string!"
 ```
 
 #### If
 ```
-if gt 2 3 then
-    "2 > 3"
-else 
-    "You guessed it!"
+let main =
+  \args.
+    if gt 2 3 then
+        "2 > 3"
+    else 
+        "You guessed it!"
 ```
 
 #### Lambda
 ```
-(\x. x) "Lambda can be called instantly like this!"
+let main =
+  \args.
+    (\x. x) "Lambda can be called instantly like this!"
 ```
 
 #### Let
@@ -73,23 +78,23 @@ else
 let bangIt = 
     \x. 
         concat x "!" 
-in 
 
-bangIt "Hello and don't forget to try stacking multiple let's :D"
+let main =
+  \args.
+    bangIt "Hello and don't forget to try stacking multiple let's :D"
 ```
 
 #### Higher-ordered Lambdas
 ```
 let flip = 
     \f. \x. \y. f y x 
-in
 
 let const = 
     \x. \y. x 
-in
 
-
-flip const "Henlo!" 2.4
+let main =
+  \args.
+    flip const "Henlo!" 2.4
 ```
 
 #### Fibonacci the bad way
@@ -102,10 +107,13 @@ let rec fib =
             1
         else
             add (fib (sub x 1)) (fib (sub x 2))
-in
 
-fib 20
+let main =
+  \args.
+    fib 20
 ```
+
+### Deprecated from here (will redo some day later):
 
 #### FizzBuzz with List type and Match!
 ```

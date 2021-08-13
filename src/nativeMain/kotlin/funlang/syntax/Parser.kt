@@ -6,12 +6,17 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
 
     val iterator = PeekableIterator(tokens)
 
-    fun parseInput(): Pair<List<TypeDeclaration>, Expression> {
-        //TODO type declaration everywhere
-        val typeDeclarations = mutableListOf<TypeDeclaration>()
-        while (iterator.peek().value is Token.Type) typeDeclarations.add(parseTypeDeclaration())
+    fun parseInput(): List<Expression> {
+        val expressions = mutableListOf<Expression>()
+        while(iterator.hasNext()) {
+            if(iterator.peek().value !in listOf(Token.Type, Token.Let)) {
+                println(iterator.peek().value)
+                error("Only let and type are allowed as root tokens")
+            }
+            expressions.add(parseExpression())
+        }
 
-        return typeDeclarations to parseExpression()
+        return expressions
     }
 
     private fun parsePolytype(): Polytype {
@@ -32,7 +37,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
         return Polytype(vars, ty)
     }
 
-    private fun parseTypeDeclaration(): TypeDeclaration {
+    private fun parseTypeDeclaration(): Expression.TypeDeclaration {
         expectNext<Token.Type>(expectedError("expected type"))
         val name = parseUpperName()
 
@@ -44,7 +49,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
         val dataConstructors = commaSeparated(::parseDataConstructor) { it !is Token.RBrace }
         expectNext<Token.RBrace>(expectedError("expected closing brace"))
 
-        return TypeDeclaration(name, typeVariables, dataConstructors)
+        return Expression.TypeDeclaration(name, typeVariables, dataConstructors)
     }
 
     private fun parseDataConstructor(): DataConstructor {
@@ -188,6 +193,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
             is Token.UpperIdent -> parseDataConstruction()
             is Token.Match -> parseMatch()
             is Token.When -> parseWhen()
+            is Token.Type -> parseTypeDeclaration()
             else -> null
         }
     }
@@ -207,17 +213,15 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
         }
         expectNext<Token.Equals>(expectedError("expected equals"))
         val expr = parseExpression()
-        expectNext<Token.In>(expectedError("expected in"))
-        val body = parseExpression()
 
         return if (isRecursive) {
-            Expression.LetRec(binder, type, expr, body)
+            Expression.LetRec(binder, type, expr)
         } else {
-            Expression.Let(binder, type, expr, body)
+            Expression.Let(binder, type, expr)
         }
     }
 
-    private fun parseIf(): Expression.If? { // if true then 3 else 4
+    private fun parseIf(): Expression.If { // if true then 3 else 4
         iterator.next()
         val condition = parseExpression()
         expectNext<Token.Then>(expectedError("expected then"))
@@ -321,7 +325,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
 
     companion object {
         fun parseType(input: String): Polytype = Parser(Lexer(input)).parsePolytype()
-        fun parseExpression(input: String): Pair<List<TypeDeclaration>, Expression> = Parser(Lexer(input)).parseInput()
+        fun parseExpression(input: String): List<Expression> = Parser(Lexer(input)).parseInput()
         fun parseTestType(input: String): Monotype = Parser(Lexer(input)).parseType().over { it }
     }
 }
