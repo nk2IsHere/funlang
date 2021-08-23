@@ -1,6 +1,6 @@
 let bangIt =
-    \x.
-        concat x "!"
+  \x.
+    concat x "!"
 
 let main =
   \args.

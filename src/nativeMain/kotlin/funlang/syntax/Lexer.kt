@@ -74,7 +74,7 @@ data class Spanned<out T>(val span: Span, val value: T) {
 val identifierStartRegex = Regex("[a-zA-Z\$_]")
 val identifierPartRegex = Regex("[a-z0-9A-Z\$_]")
 
-class Lexer(input: String): Iterator<Spanned<Token>> {
+class Lexer(private val input: String): Iterator<Spanned<Token>> {
     var iterator = CharLocations(input.iterator())
 
     init {
@@ -120,14 +120,14 @@ class Lexer(input: String): Iterator<Spanned<Token>> {
                     Arrow to 2
                 }
                 iterator.peek().isDigit() -> doubleLiteral(c)
-                else -> error("unknown construction begins with \"-\"")
+                else -> throw LexerException(input, iterator.position.line, "Unknown construction begins with \"-\"")
             }
             '"' -> stringLiteral()
             '_' -> Underscore to 1
             else -> when {
                 "$c".matches(identifierStartRegex) -> ident(c)
                 c.isDigit() -> doubleLiteral(c)
-                else -> error("$c does not correspond to any recognizable character by lexer")
+                else -> throw LexerException(input, iterator.position.line, "$c does not correspond to any recognizable character by lexer")
             }
         }.also {
             consumeWhitespace()
@@ -141,7 +141,7 @@ class Lexer(input: String): Iterator<Spanned<Token>> {
         while (iterator.hasNext() && iterator.peek() != '"') {
             buffer += iterator.next()
         }
-        if(!iterator.hasNext()) throw Exception("Unclosed String literal")
+        if(!iterator.hasNext()) throw LexerException(input, iterator.position.line, "Unclosed String literal")
         iterator.next()
         return StringToken(buffer.replace("\\n", "\n")) to buffer.length + 2
     }
@@ -250,3 +250,9 @@ class CharLocations(private val iterator: Iterator<Char>) : Iterator<Char> {
         return c
     }
 }
+
+class LexerException(program: String, line: Int, message: String): RuntimeException("""
+      An exception has been thrown while lexing
+      $program
+      At $line: $message
+""".trimIndent())

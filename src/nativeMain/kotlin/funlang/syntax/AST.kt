@@ -31,7 +31,6 @@ data class Case(val pattern: Pattern, val expr: Expression)
 
 data class Condition(val condition: Expression?, val thenCase: Expression) // null is accepted in parsing as else branch
 
-
 sealed class Pattern {
     data class Constructor(val ty: Name, val dtor: Name, val fields: List<Pattern>) : Pattern()
     data class Var(val v: Name) : Pattern()

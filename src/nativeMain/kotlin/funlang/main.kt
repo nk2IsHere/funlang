@@ -20,8 +20,10 @@ fun main(): Unit = runBlocking {
         .forEach { (name, program) ->
             println("Execute $name:")
             println(program)
-            val result = runProgram(program)
+            val result = runProgram(program, "test" to "test", "testBool" to true, "testInt" to 4)
             println("==============")
             println("Result: $result")
+            println("==============")
+            println()
         }
 }

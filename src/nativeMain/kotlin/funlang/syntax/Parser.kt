@@ -10,10 +10,13 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
         val expressions = mutableListOf<Expression>()
         while(iterator.hasNext()) {
             if(iterator.peek().value !in listOf(Token.Type, Token.Let)) {
-                println(iterator.peek().value)
-                error("Only let and type are allowed as root tokens")
+                throw ParserException(
+                    expressions.last().toString(),
+                    "Only let and type are expected as root tokens, " +
+                        "found: ${iterator.peek().value}, " +
+                        "please check if parentheses are closed correctly")
             }
-            expressions.add(parseExpression())
+            expressions.add(parseExpression(root = true))
         }
 
         return expressions
@@ -156,12 +159,16 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
         return Expression.Lambda(binder, body)
     }
 
-    private fun parseExpression(): Expression {
+    private fun parseExpression(root: Boolean = false): Expression {
         val atoms = mutableListOf<Expression>()
         while (iterator.hasNext()) {
-            parseAtom()?.let {
-                atoms += it
-            } ?: break
+            // FIXME: dirty hack to stop parser from including Let in non-roots and parsing more than one root at call
+            if(!root && iterator.peek().value == Token.Let
+                || root && atoms.isNotEmpty())
+                break
+
+            parseAtom()?.let { atoms += it }
+                ?: break
         }
 
         return when {
@@ -305,11 +312,11 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
         "$msg saw ${token.value} at ${token.span}"
     }
 
-    private inline fun <reified T> expectNext(error: (token: Spanned<Token>) -> String): Spanned<T> {
+    private inline fun <reified T> expectNext(tokenToError: (token: Spanned<Token>) -> String): Spanned<T> {
         val (span, token) = iterator.next()
 
         get<T>(token)?.let { return Spanned(span, it) }
-            ?: error(error(Spanned(span, token)))
+            ?: error(tokenToError(Spanned(span, token)))
     }
 
     private fun <T> commaSeparated(parser: () -> T, cont: (Token) -> Boolean): List<T> {
@@ -324,8 +331,12 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
     }
 
     companion object {
-        fun parseType(input: String): Polytype = Parser(Lexer(input)).parsePolytype()
         fun parseExpression(input: String): List<Expression> = Parser(Lexer(input)).parseInput()
-        fun parseTestType(input: String): Monotype = Parser(Lexer(input)).parseType().over { it }
     }
 }
+
+class ParserException(expression: String, message: String): RuntimeException("""
+      An exception has been thrown while parsing
+      $expression
+      Message: $message
+""".trimIndent())
