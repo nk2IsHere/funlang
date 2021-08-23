@@ -4,16 +4,27 @@ import funlang.syntax.*
 import kotlinx.collections.immutable.*
 import kotlin.math.sqrt
 
-data class IREnv(private val env: PersistentMap<Name, IR> = persistentHashMapOf()) {
+data class IREnv(private val env: PersistentMap<Name, Pair<IR, IREnvScope>> = persistentHashMapOf()) {
+
+    enum class IREnvScope {
+        GLOBAL,
+        LOCAL
+    }
 
     operator fun plus(nameToIr: Pair<Name, IR>) =
-        this.copy(env = env + nameToIr)
+        this.copy(env = env + nameToIr.let { (name, ir) -> name to (ir to IREnvScope.GLOBAL) })
 
     operator fun plus(irEnv: IREnv) =
         this.copy(env = env + irEnv.env)
 
     operator fun plus(nameToIrs: Iterable<Pair<Name, IR>>) =
-        this.copy(env = env + nameToIrs)
+        this.copy(env = env + nameToIrs.map { (name, ir) -> name to (ir to IREnvScope.GLOBAL) })
+
+    operator fun rem(nameToIr: Pair<Name, IR>) =
+        this.copy(env = env + nameToIr.let { (name, ir) -> name to (ir to IREnvScope.LOCAL) })
+
+    operator fun rem(nameToIrs: Iterable<Pair<Name, IR>>) =
+        this.copy(env = env + nameToIrs.map { (name, ir) -> name to (ir to IREnvScope.LOCAL) })
 
     operator fun minus(name: Name) =
         this.copy(env = env - name)
@@ -25,21 +36,26 @@ data class IREnv(private val env: PersistentMap<Name, IR> = persistentHashMapOf(
         this.copy(env = env - nameToIrs.map { it.first })
 
     operator fun get(name: Name) =
-        this.env[name]
+        this.env[name]?.let { (ir, _) -> ir }
 
-    // FIXME: dirty hack, gotta find a better way to filter out globals
-    fun globals() =
+    fun byScope(scope: IREnvScope) =
         IREnv(
-            this.env.filterValues { it is IR.IRPrimitive || it is IR.IRType || it is IR.Let }
+            this.env.filterValues { (_, varScope) -> varScope == scope }
                 .toPersistentMap()
         )
 
     companion object {
-        fun of(vararg nameToIrs: Pair<Name, IR>) =
-            IREnv(persistentMapOf(*nameToIrs))
+        fun of(vararg nameToIrs: Pair<Name, IR>, scope: IREnvScope = IREnvScope.LOCAL) =
+            when(scope) {
+                IREnvScope.GLOBAL -> IREnv() + listOf(*nameToIrs)
+                IREnvScope.LOCAL -> IREnv() % listOf(*nameToIrs)
+            }
 
-        fun of(nameToIrs: List<Pair<Name, IR>>) =
-            IREnv(nameToIrs.toMap().toPersistentMap())
+        fun of(nameToIrs: List<Pair<Name, IR>>, scope: IREnvScope = IREnvScope.LOCAL) =
+            IREnv(
+                nameToIrs.associate { (name, ir) -> name to (ir to scope) }
+                    .toPersistentMap()
+            )
     }
 }
 
@@ -116,13 +132,11 @@ sealed class IR {
     data class App(val function: IR, val argument: IR) : IR() {
 
         //TODO: use something like IRCallable to distinct between callables and others
-        override fun eval(env: IREnv): IR {
-            val closureResult = function.eval(env)
-            return when (closureResult) {
-                is Lambda -> closureResult.body.eval(closureResult.layeredIREnv + env.globals() + (closureResult.binder to argument.eval(env)))
+        override fun eval(env: IREnv): IR =
+            when (val closureResult = function.eval(env)) {
+                is Lambda -> closureResult.body.eval(env.byScope(IREnv.IREnvScope.GLOBAL) + closureResult.layeredIREnv % (closureResult.binder to argument.eval(env)))
                 else -> throw Exception("Only functions and primitives are allowed as callables, $closureResult found")
             }
-        }
     }
 
     data class Let(val recursive: Boolean, val binder: Name, val expr: IR) : IRRoot() {
@@ -159,7 +173,7 @@ sealed class IR {
             if(case.binders.size > scrutinee.values.size)
                 throw Exception("case binders count can't be more than ${scrutinee.ty}::${scrutinee.dtor} can allow")
 
-            return case.eval(env + case.binders.zip(scrutinee.values))
+            return case.eval(env % case.binders.zip(scrutinee.values))
         }
     }
 
@@ -167,7 +181,7 @@ sealed class IR {
 
         override fun eval(env: IREnv): IR {
             val scrutinee = scrutinee.eval(env)
-            val tmpEnv = env + (renamedScrutinee to scrutinee)
+            val tmpEnv = env % (renamedScrutinee to scrutinee)
 
             val case = conditions.firstOrNull { it.condition.eval(tmpEnv).matchBool() }
                 ?: elseCase
