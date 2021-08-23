@@ -110,17 +110,13 @@ sealed class IR {
     data class Map(val map: PersistentMap<IR, IR>): IR() {
 
         override fun eval(env: IREnv): IR =
-            map[env[Name("k")]] ?: throw Exception("Unknown key in map: ${env[Name("k")]}")
+            map[env[Name("key")]] ?: throw Exception("Unknown key in map: ${env[Name("key")]}")
     }
 
     data class Var(val name: Name): IR(), IRPrimitiveAware {
 
-        //TODO: dirty hack because IRPrimitive is an addition wrapper around lambda which is not considered later
         override fun eval(env: IREnv): IR =
-            when(val expr = env[name] ?: throw Exception("Unknown variable $name")) {
-                is IRPrimitive -> expr.eval(env)
-                else -> expr
-            }
+            env[name] ?: throw Exception("Unknown variable $name")
     }
 
     data class Lambda(val binder: Name, val body: IR, val layeredIREnv: IREnv = IREnv()) : IR() {
@@ -139,7 +135,7 @@ sealed class IR {
             }
     }
 
-    data class Let(val recursive: Boolean, val binder: Name, val expr: IR) : IRRoot() {
+    data class Let(val binder: Name, val expr: IR) : IRRoot() {
 
         override fun prepareEnv(env: IREnv): IREnv =
             env + (binder to eval(env))
@@ -206,7 +202,7 @@ sealed class IR {
     sealed class IRPrimitive(val name: Name): IRRoot() {
 
         override fun prepareEnv(env: IREnv): IREnv =
-            env + (name to this)
+            env + (name to this.eval(env))
 
         override fun toString(): kotlin.String =
             "IRPrimitive(name=$name)"
@@ -267,6 +263,15 @@ sealed class IR {
             this
     }
 
+    data class LetMemoize(val binder: Name, val expr: Lambda) : IRRoot() {
+
+        override fun prepareEnv(env: IREnv): IREnv =
+            env + (binder to eval(env))
+
+        override fun eval(env: IREnv): IR =
+            expr
+    }
+
     companion object {
 
         internal fun fromKotlinPrimitive(primitive: Any): IR = when(primitive) {
@@ -283,8 +288,8 @@ sealed class IR {
             is Expression.Var -> Var(expr.name)
             is Expression.Lambda -> Lambda(expr.binder, fromExpression(expr.body))
             is Expression.App -> App(fromExpression(expr.function), fromExpression(expr.argument))
-            is Expression.Let -> Let(false, expr.binder, fromExpression(expr.expr))
-            is Expression.LetRec -> Let(true, expr.binder, fromExpression(expr.expr))
+            is Expression.Let -> Let(expr.binder, fromExpression(expr.expr))
+            is Expression.LetMemoize -> LetMemoize(expr.binder, fromExpression(expr.expr) as? Lambda ?: throw Exception("Only Lambda is allowed to be memoized"))
             is Expression.If -> If(fromExpression(expr.condition), fromExpression(expr.thenCase), fromExpression(expr.elseCase))
             is Expression.Constructor -> Constructor(expr.ty, expr.dtor, expr.fields.map { fromExpression(it) })
             is Expression.Match -> Match(fromExpression(expr.expr), expr.cases.map { caseFromExpr(it) })
@@ -338,7 +343,7 @@ private val environmentPrimitives = persistentListOf(
     IR.IRBinaryPrimitive<IR.Bool, IR.Bool>(Name("or")) { x, y -> IR.Bool(x().bool or y().bool) },
     IR.IRBinaryPrimitive<IR.Bool, IR.Bool>(Name("xor")) { x, y -> IR.Bool(x().bool xor y().bool) },
     IR.IRUnaryPrimitive<IR.Bool>(Name("not")) { x -> IR.Bool(x().bool.not()) },
-    IR.IRBinaryPrimitive<IR.Map, IR>(Name("get")) { map, k -> map().eval(IREnv.of(Name("k") to k())) }
+    IR.IRBinaryPrimitive<IR.Map, IR>(Name("get")) { map, key -> map().eval(IREnv.of(Name("key") to key())) }
 )
 
 fun runProgram(input: String, vararg envArguments: Pair<String, Any>): IR {

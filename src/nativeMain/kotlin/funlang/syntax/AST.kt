@@ -10,7 +10,7 @@ sealed class Expression {
     data class String(val string: kotlin.String) : Expression()
     data class Var(val name: Name) : Expression()
     data class Let(val binder: Name, val type: Polytype?, val expr: Expression) : Expression()
-    data class LetRec(val binder: Name, val type: Polytype?, val expr: Expression) : Expression()
+    data class LetMemoize(val binder: Name, val type: Polytype?, val expr: Expression) : Expression()
     data class Constructor(val ty: Name, val dtor: Name, val fields: List<Expression>) : Expression()
     data class Match(val expr: Expression, val cases: List<Case>) : Expression()
     data class Lambda(val binder: Name, val body: Expression) : Expression()

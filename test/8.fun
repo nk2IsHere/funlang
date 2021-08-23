@@ -1,8 +1,6 @@
-let rec fib =
+let memoize fib =
     \x.
-        if eq x 1 then
-            1
-        else if eq x 2 then
+        if or (eq x 1) (eq x 2) then
             1
         else
             add (fib (sub x 1)) (fib (sub x 2))

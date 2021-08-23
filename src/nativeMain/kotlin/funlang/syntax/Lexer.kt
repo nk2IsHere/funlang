@@ -34,7 +34,7 @@ sealed class Token {
     data class StringToken(val string: String) : Token()
     object EOF : Token()
     object Let: Token()
-    object Rec: Token()
+    object Memoize: Token()
     object In: Token()
     object Forall: Token()
     object If: Token()
@@ -175,7 +175,7 @@ class Lexer(private val input: String): Iterator<Spanned<Token>> {
             "true" -> BoolToken(true)
             "false" -> BoolToken(false)
             "let" -> Let
-            "rec" -> Rec
+            "memoize" -> Memoize
             "in" -> In
             "if" -> If
             "then" -> Then
@@ -194,13 +194,9 @@ class PeekableIterator<T>(private val iterator: Iterator<T>) : Iterator<T> {
 
     private var lookahead: T? = null
 
-    override fun hasNext(): Boolean {
-        return if (lookahead != null) {
-            true
-        } else {
-            iterator.hasNext()
-        }
-    }
+    override fun hasNext(): Boolean =
+        if (lookahead != null) true
+        else iterator.hasNext()
 
     override fun next(): T {
         return if (lookahead != null) {
@@ -223,9 +219,9 @@ class CharLocations(private val iterator: Iterator<Char>) : Iterator<Char> {
     private var lookahead: Char? = null
     var position = Position(1, 0)
 
-    override fun hasNext(): Boolean {
-        return if (lookahead != null) true else iterator.hasNext()
-    }
+    override fun hasNext(): Boolean =
+        if (lookahead != null) true
+        else iterator.hasNext()
 
     override fun next(): Char {
         return if (lookahead != null) {
@@ -252,7 +248,7 @@ class CharLocations(private val iterator: Iterator<Char>) : Iterator<Char> {
 }
 
 class LexerException(program: String, line: Int, message: String): RuntimeException("""
-      An exception has been thrown while lexing
-      $program
-      At $line: $message
-""".trimIndent())
+An exception has been thrown while lexing
+At line $line: $message
+$program
+""")

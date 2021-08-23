@@ -208,7 +208,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
     private fun parseLet(): Expression {
         iterator.next()
         var isRecursive = false
-        if (iterator.peek().value is Token.Rec) {
+        if (iterator.peek().value is Token.Memoize) {
             iterator.next()
             isRecursive = true
         }
@@ -222,7 +222,7 @@ class Parser(tokens: Iterator<Spanned<Token>>) {
         val expr = parseExpression()
 
         return if (isRecursive) {
-            Expression.LetRec(binder, type, expr)
+            Expression.LetMemoize(binder, type, expr)
         } else {
             Expression.Let(binder, type, expr)
         }
