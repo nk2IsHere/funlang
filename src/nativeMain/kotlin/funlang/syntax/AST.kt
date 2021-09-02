@@ -1,5 +1,8 @@
 package funlang.syntax
 
+import kotlinx.serialization.Serializable
+
+@Serializable
 value class Name(val v: String) {
     override fun toString(): String = v
 }

@@ -2,9 +2,15 @@ package funlang.interpret
 
 import funlang.syntax.*
 import kotlinx.collections.immutable.*
+import kotlinx.serialization.Polymorphic
+import kotlinx.serialization.Serializable
 import kotlin.math.sqrt
 
-data class IREnv(private val env: PersistentMap<Name, Pair<IR, IREnvScope>> = persistentHashMapOf()) {
+@Serializable
+data class IREnv(
+    @Serializable(PersistentMapSerializer::class)
+    private val env: PersistentMap<Name, Pair<IR, IREnvScope>> = persistentHashMapOf()
+) {
 
     enum class IREnvScope {
         GLOBAL,
@@ -59,10 +65,12 @@ data class IREnv(private val env: PersistentMap<Name, Pair<IR, IREnvScope>> = pe
     }
 }
 
+@Serializable
 sealed class IR {
 
     internal abstract fun eval(env: IREnv): IR
 
+    @Serializable
     sealed class IRRoot: IR() {
 
         abstract fun prepareEnv(env: IREnv): IREnv
@@ -80,6 +88,7 @@ sealed class IR {
             (this as? String)?.string ?: throw Exception("Expected a String but got $this")
     }
 
+    @Serializable
     data class Double(val double: kotlin.Double): IR() {
 
         override fun eval(env: IREnv): IR =
@@ -89,6 +98,7 @@ sealed class IR {
             "$double"
     }
 
+    @Serializable
     data class Bool(val bool: Boolean): IR() {
 
         override fun eval(env: IREnv): IR =
@@ -98,6 +108,7 @@ sealed class IR {
             "$bool"
     }
 
+    @Serializable
     data class String(val string: kotlin.String): IR() {
 
         override fun eval(env: IREnv): IR =
@@ -107,24 +118,28 @@ sealed class IR {
             string
     }
 
+    @Serializable
     data class Map(val map: PersistentMap<IR, IR>): IR() {
 
         override fun eval(env: IREnv): IR =
             map[env[Name("key")]] ?: throw Exception("Unknown key in map: ${env[Name("key")]}")
     }
 
+    @Serializable
     data class Var(val name: Name): IR(), IRPrimitiveAware {
 
         override fun eval(env: IREnv): IR =
             env[name] ?: throw Exception("Unknown variable $name")
     }
 
+    @Serializable
     data class Lambda(val binder: Name, val body: IR, val layeredIREnv: IREnv = IREnv()) : IR() {
 
         override fun eval(env: IREnv): IR =
             Lambda(binder, body, env + layeredIREnv)
     }
 
+    @Serializable
     data class App(val function: IR, val argument: IR) : IR() {
 
         //TODO: use something like IRCallable to distinct between callables and others
@@ -135,6 +150,7 @@ sealed class IR {
             }
     }
 
+    @Serializable
     data class Let(val binder: Name, val expr: IR) : IRRoot() {
 
         override fun prepareEnv(env: IREnv): IREnv =
@@ -144,6 +160,7 @@ sealed class IR {
             expr
     }
 
+    @Serializable
     data class If(val condition: IR, val thenCase: IR, val elseCase: IR) : IR(), IRPrimitiveAware {
 
         override fun eval(env: IREnv): IR =
@@ -153,12 +170,14 @@ sealed class IR {
             }
     }
 
+    @Serializable
     data class Constructor(val ty: Name, val dtor: Name, val values: List<IR>) : IR() {
 
         override fun eval(env: IREnv): IR =
             Constructor(ty, dtor, values.map { it.eval(env) })
     }
 
+    @Serializable
     data class Match(val scrutinee: IR, val cases: List<Case>) : IR() {
 
         override fun eval(env: IREnv): IR {
@@ -173,6 +192,7 @@ sealed class IR {
         }
     }
 
+    @Serializable
     data class When(val scrutinee: IR, val renamedScrutinee: Name, val elseCase: IR?, val conditions: List<Condition>): IR(), IRPrimitiveAware {
 
         override fun eval(env: IREnv): IR {
@@ -187,22 +207,25 @@ sealed class IR {
         }
     }
 
+    @Serializable
     data class Case(val ty: Name, val dtor: Name, val binders: List<Name>, val body: IR): IR() {
 
         override fun eval(env: IREnv): IR =
             body.eval(env)
     }
 
+    @Serializable
     data class Condition(val condition: IR, val thenCase: IR): IR() {
 
         override fun eval(env: IREnv): IR =
             thenCase.eval(env)
     }
 
+    @Serializable
     sealed class IRPrimitive(val name: Name): IRRoot() {
 
         override fun prepareEnv(env: IREnv): IREnv =
-            env + (name to this.eval(env))
+            env + (name to eval(env))
 
         override fun toString(): kotlin.String =
             "IRPrimitive(name=$name)"
@@ -254,6 +277,7 @@ sealed class IR {
     }
 
     // TODO: Stub
+    @Serializable
     object IRType: IRRoot() {
 
         override fun prepareEnv(env: IREnv): IREnv =
@@ -263,6 +287,7 @@ sealed class IR {
             this
     }
 
+    @Serializable
     data class LetMemoize(val binder: Name, val expr: Lambda) : IRRoot() {
 
         override fun prepareEnv(env: IREnv): IREnv =
@@ -281,7 +306,7 @@ sealed class IR {
             else -> throw Exception("Unable to convert $primitive to IR")
         }
 
-        internal fun fromExpression(expr: Expression): IR = when (expr) {
+        internal fun fromExpression(expr: Expression): IR = when(expr) {
             is Expression.Double -> Double(expr.double)
             is Expression.Bool -> Bool(expr.bool)
             is Expression.String -> String(expr.string)
@@ -346,17 +371,23 @@ private val environmentPrimitives = persistentListOf(
     IR.IRBinaryPrimitive<IR.Map, IR>(Name("get")) { map, key -> map().eval(IREnv.of(Name("key") to key())) }
 )
 
-fun runProgram(input: String, vararg envArguments: Pair<String, Any>): IR {
+private val primitivesIrEnv = environmentPrimitives.fold(IREnv()) { acc, ir -> ir.prepareEnv(acc) }
+
+suspend fun runProgram(input: String, vararg envArguments: Pair<String, Any>): IR {
     val inputPreprocessed = Preprocessor(input).process()
     val expressions = Parser.parseExpression(inputPreprocessed)
 
-    val irEnv = (environmentPrimitives + expressions.map { (IR.fromExpression(it) as? IR.IRRoot) ?: throw Exception("$it is not IRRoot") })
-        .fold(IREnv()) { acc, ir -> ir.prepareEnv(acc) }
+
+    val irEnv = loadEnv("cache", "${input.hashCode()}") ?: (
+        (expressions.map { (IR.fromExpression(it) as? IR.IRRoot) ?: throw Exception("$it is not IRRoot") })
+            .fold(IREnv()) { acc, ir -> ir.prepareEnv(acc) }
+            .apply { saveEnv(this, "cache", "${input.hashCode()}") }
+    )
 
     val mainIr = (irEnv[Name("main")] ?: throw Exception("Found no main Lambda in root")) as? IR.Lambda
         ?: throw Exception("main in root is not Lambda")
 
     val argsIr = IR.Map(envArguments.associate { (name, arg) -> IR.fromKotlinPrimitive(name) to IR.fromKotlinPrimitive(arg) }.toPersistentMap())
 
-    return mainIr.body.eval(irEnv + (Name("args") to argsIr))
+    return mainIr.body.eval(primitivesIrEnv + irEnv + (Name("args") to argsIr))
 }
