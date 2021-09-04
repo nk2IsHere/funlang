@@ -2,7 +2,6 @@ package funlang.interpret
 
 import funlang.syntax.*
 import kotlinx.collections.immutable.*
-import kotlinx.serialization.Polymorphic
 import kotlinx.serialization.Serializable
 import kotlin.math.sqrt
 
@@ -373,16 +372,23 @@ private val environmentPrimitives = persistentListOf(
 
 private val primitivesIrEnv = environmentPrimitives.fold(IREnv()) { acc, ir -> ir.prepareEnv(acc) }
 
-suspend fun runProgram(input: String, vararg envArguments: Pair<String, Any>): IR {
+private fun parseProgram(input: String): List<Expression> {
     val inputPreprocessed = Preprocessor(input).process()
-    val expressions = Parser.parseExpression(inputPreprocessed)
+    return Parser.parseExpression(inputPreprocessed)
+}
 
-
-    val irEnv = loadEnv("cache", "${input.hashCode()}") ?: (
-        (expressions.map { (IR.fromExpression(it) as? IR.IRRoot) ?: throw Exception("$it is not IRRoot") })
-            .fold(IREnv()) { acc, ir -> ir.prepareEnv(acc) }
-            .apply { saveEnv(this, "cache", "${input.hashCode()}") }
-    )
+suspend fun runProgram(input: String, vararg envArguments: Pair<String, Any>, allowCaching: Boolean = true): IR {
+    val irEnv = allowCaching
+        .let {
+            if(it) loadEnv("cache", "${input.hashCode()}")
+            else null
+        }
+        ?: (
+            parseProgram(input)
+                .map { (IR.fromExpression(it) as? IR.IRRoot) ?: throw Exception("$it is not IRRoot") }
+                .fold(IREnv()) { acc, ir -> ir.prepareEnv(acc) }
+                .also { saveEnv(it, "cache", "${input.hashCode()}") }
+        )
 
     val mainIr = (irEnv[Name("main")] ?: throw Exception("Found no main Lambda in root")) as? IR.Lambda
         ?: throw Exception("main in root is not Lambda")
